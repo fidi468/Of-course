@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 
@@ -12,8 +12,11 @@ type ProfileRow = {
   credit_balance: number
 }
 
+type SkillType = 'teach' | 'learn'
+
 type MySkill = {
   id: number
+  type: SkillType
   level: string | null
   description: string | null
   skills: { id: number; name: string; category: string } | null
@@ -28,6 +31,12 @@ type ReviewRow = {
   created_at: string
   reviewer: { id: string; full_name: string; avatar_url: string | null } | null
   skill: { id: number; name: string } | null
+}
+
+type PageStats = {
+  teachingHours: number
+  learningHours: number
+  completedSessions: number
 }
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -46,12 +55,11 @@ function fetchProfile(userId: string) {
     .single()
 }
 
-function fetchMyTeachSkills(userId: string) {
+function fetchMySkills(userId: string) {
   return supabase
     .from('user_skills')
-    .select('id, level, description, skills(id, name, category)')
+    .select('id, type, level, description, skills(id, name, category)')
     .eq('user_id', userId)
-    .eq('type', 'teach')
     .order('created_at', { ascending: false })
 }
 
@@ -68,6 +76,14 @@ function fetchCreditStats(userId: string) {
     .from('credit_transactions')
     .select('type, amount')
     .eq('user_id', userId)
+}
+
+function fetchCompletedSessionCount(userId: string) {
+  return supabase
+    .from('lesson_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'completed')
+    .or(`requester_id.eq.${userId},teacher_id.eq.${userId}`)
 }
 
 function fetchMyReviews(userId: string) {
@@ -117,11 +133,18 @@ function Profile() {
 
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [mySkills, setMySkills] = useState<MySkill[]>([])
-  const [stats, setStats] = useState({ earned: 0, spent: 0 })
+  const [stats, setStats] = useState<PageStats>({
+    teachingHours: 0,
+    learningHours: 0,
+    completedSessions: 0,
+  })
   const [reviews, setReviews] = useState<ReviewRow[] | null>(null)
   const [reviewsAvailable, setReviewsAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+
+  // Bacarıq tabları: Öyrətdiklərim / Öyrəndiklərim
+  const [activeTab, setActiveTab] = useState<SkillType>('teach')
 
   // Bacarıq əməliyyatları
   const [catalog, setCatalog] = useState<SkillCatalogItem[]>([])
@@ -144,9 +167,10 @@ function Profile() {
 
   const [addModal, setAddModal] = useState(false)
   // Navbar "Bacarıq paylaş" düyməsi /profile?add=1 ilə gəlir —
-  // effect lazım deyil: modalın açıqlığı URL-dən törəmiş (derived) halda hesablanır
+  // modalın açıqlığı URL-dən törəmiş (derived) halda hesablanır
   const addParam = searchParams.get('add') === '1'
   const addModalOpen = addModal || addParam
+  const [addType, setAddType] = useState<SkillType>('teach')
   const [addSkillId, setAddSkillId] = useState('')
   const [addLevel, setAddLevel] = useState('beginner')
   const [addDescription, setAddDescription] = useState('')
@@ -164,7 +188,7 @@ function Profile() {
   const reloadSkills = useCallback(async () => {
     if (!user) return
 
-    const { data, error } = await fetchMyTeachSkills(user.id)
+    const { data, error } = await fetchMySkills(user.id)
 
     if (error) {
       setPageError(error.message)
@@ -186,12 +210,14 @@ function Profile() {
       setPageError('')
 
       try {
-        const [profileRes, skillsRes, statsRes, reviewsRes] = await Promise.all([
-          fetchProfile(userId),
-          fetchMyTeachSkills(userId),
-          fetchCreditStats(userId),
-          fetchMyReviews(userId),
-        ])
+        const [profileRes, skillsRes, statsRes, sessionsRes, reviewsRes] =
+          await Promise.all([
+            fetchProfile(userId),
+            fetchMySkills(userId),
+            fetchCreditStats(userId),
+            fetchCompletedSessionCount(userId),
+            fetchMyReviews(userId),
+          ])
 
         if (ignore) return
 
@@ -201,13 +227,17 @@ function Profile() {
         setMySkills(((skillsRes.data ?? []) as unknown) as MySkill[])
 
         const transactions = statsRes.data ?? []
-        const earned = transactions
+        const teachingHours = transactions
           .filter(item => item.type === 'lesson_earned')
           .reduce((sum, item) => sum + item.amount, 0)
-        const spent = transactions
+        const learningHours = transactions
           .filter(item => item.type === 'lesson_spent')
           .reduce((sum, item) => sum + Math.abs(item.amount), 0)
-        setStats({ earned, spent })
+        const completedSessions = sessionsRes.error
+          ? 0
+          : sessionsRes.count ?? 0
+
+        setStats({ teachingHours, learningHours, completedSessions })
 
         // reviews cədvəli mövcud deyilsə səhifə dağılmasın — boş vəziyyət göstərilir
         if (reviewsRes.error) {
@@ -237,23 +267,39 @@ function Profile() {
     }
   }, [user])
 
-  // Bacarıq katalogu yalnız modal açılanda yüklənir
-  async function openAddModal() {
-    setAddModal(true)
-    setAddError('')
-    setAddSkillId('')
-    setAddLevel('beginner')
-    setAddDescription('')
+  // Bacarıq katalogu modal açılanda (düymədən VƏ YA ?add=1 linkindən) yüklənsin
+  useEffect(() => {
+    if (!addModalOpen || catalog.length > 0) return
 
-    const { data, error } = await fetchSkillCatalog()
+    let ignore = false
 
-    if (error) {
-      setAddError(error.message)
-      return
+    fetchSkillCatalog().then(({ data, error }) => {
+      if (ignore) return
+
+      if (error) {
+        setAddError(error.message)
+        return
+      }
+
+      setCatalog(((data ?? []) as unknown) as SkillCatalogItem[])
+    })
+
+    return () => {
+      ignore = true
     }
+  }, [addModalOpen, catalog.length])
 
-    setCatalog((data ?? []) as unknown as SkillCatalogItem[])
-  }
+  const teachSkills = useMemo(
+    () => mySkills.filter(item => item.type === 'teach'),
+    [mySkills]
+  )
+
+  const learnSkills = useMemo(
+    () => mySkills.filter(item => item.type === 'learn'),
+    [mySkills]
+  )
+
+  const tabSkills = activeTab === 'teach' ? teachSkills : learnSkills
 
   function openEditProfileModal() {
     if (!profile) return
@@ -271,6 +317,15 @@ function Profile() {
     setEditLevel(skill.level ?? 'beginner')
     setEditDescription(skill.description ?? '')
     setSkillError('')
+  }
+
+  function openAddModal(type: SkillType) {
+    setAddModal(true)
+    setAddType(type)
+    setAddError('')
+    setAddSkillId('')
+    setAddLevel('beginner')
+    setAddDescription('')
   }
 
   function closeAllSkillModals() {
@@ -370,7 +425,7 @@ function Profile() {
       const { error } = await supabase.from('user_skills').insert({
         user_id: user.id,
         skill_id: Number(addSkillId),
-        type: 'teach',
+        type: addType,
         level: addLevel,
         description: addDescription.trim() || null,
       })
@@ -380,6 +435,7 @@ function Profile() {
         return
       }
 
+      setActiveTab(addType)
       setAddModal(false)
 
       if (addParam) {
@@ -480,18 +536,6 @@ function Profile() {
     [profile]
   )
 
-  const tagLine = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          mySkills
-            .map(item => item.skills?.category)
-            .filter((category): category is string => Boolean(category))
-        )
-      ).join(' / '),
-    [mySkills]
-  )
-
   const rating = useMemo(() => {
     if (!reviews || reviews.length === 0) return null
 
@@ -503,309 +547,330 @@ function Profile() {
 
   if (loading) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center text-sm text-[#8065a8]">
-        Profil yüklənir...
+      <div className="rounded-3xl bg-[#faf9fd] px-4 py-20 text-center sm:px-8">
+        <p className="text-sm text-[#89859A]">Profil yüklənir...</p>
       </div>
     )
   }
 
   if (pageError && !profile) {
     return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3 text-sm text-red-600">
-        <p>{pageError}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-full bg-[#8b20d5] px-5 py-2 text-white"
-        >
-          Yenidən cəhd et
-        </button>
+      <div className="rounded-3xl bg-[#faf9fd] px-4 py-20 sm:px-8">
+        <div className="flex flex-col items-center justify-center gap-3 text-sm text-red-600">
+          <p>{pageError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-xl bg-purple-600 px-5 py-2 text-white transition hover:bg-purple-700"
+          >
+            Yenidən cəhd et
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-3xl bg-[#f7f2fd] px-4 py-8 sm:px-8">
+    <div className="rounded-3xl bg-[#faf9fd] p-4 text-[#29243A] sm:p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-6">
 
-      {/* PAGE HEADER */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#24105c] sm:text-3xl">
-          Mənim profil
-        </h1>
-        <p className="mt-1 text-xs text-[#8065a8] sm:text-sm">
-          Hesab məlumatlarını və bacarıqlarımı buradan idarə et.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px,1fr]">
-
-        {/* LEFT CARD */}
-        <section className="h-fit rounded-2xl border border-[#ecd1f6] bg-white p-6 text-center">
-          {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt={profile.full_name || 'İstifadəçi'}
-              className="mx-auto h-20 w-20 rounded-full object-cover"
-            />
-          ) : (
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#f4e1fb] text-2xl font-bold text-[#8b20d5]">
-              {initials}
-            </div>
-          )}
-
-          <h2 className="mt-4 text-lg font-bold text-[#24105c]">
-            {profile?.full_name || 'İstifadəçi'}
-          </h2>
-
-          {tagLine && (
-            <span className="mt-2 inline-block rounded-full bg-[#f4e1fb] px-3 py-1 text-[10px] font-semibold text-[#8b20d5]">
-              {tagLine}
-            </span>
-          )}
-
-          {profile?.bio && (
-            <p className="mt-3 text-xs leading-5 text-[#604c85]">
-              {profile.bio}
-            </p>
-          )}
-
-          {profile?.university && (
-            <p className="mt-1 text-[10px] text-[#a58ab9]">
-              {profile.university}
-            </p>
-          )}
-
-          <p className="mt-3 text-xs font-semibold text-[#24105c]">
-            {rating ? (
-              <>★ {rating} ({reviews?.length} rəy)</>
-            ) : (
-              <span className="text-[#a58ab9]">Hələ rəy yoxdur</span>
-            )}
+        {/* 1. SƏHİFƏ BAŞLIĞI */}
+        <header>
+          <p className="text-sm font-semibold text-purple-500">
+            OF COURSE / PROFİL
           </p>
+          <h1 className="mt-2 text-3xl font-bold">
+            Mənim profilim
+          </h1>
+          <p className="mt-1 text-[#89859A]">
+            Öyrənmə yolculuğunu buradan idarə et.
+          </p>
+        </header>
 
-          {/* STATS */}
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-[#faf4fd] py-3">
-              <p className="text-lg font-bold text-[#24105c]">{stats.earned} saat</p>
-              <p className="text-[10px] text-[#8065a8]">Öyrətdiyi</p>
-            </div>
-            <div className="rounded-xl bg-[#faf4fd] py-3">
-              <p className="text-lg font-bold text-[#24105c]">{stats.spent} saat</p>
-              <p className="text-[10px] text-[#8065a8]">Öyrəndiyi</p>
-            </div>
+        {pageError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-600">
+            {pageError}
           </div>
+        )}
 
-          {/* BALANCE */}
-          <div className="mt-4 rounded-xl border border-green-200 bg-[#dcfce7] px-4 py-4">
-            <p className="text-[10px] text-[#3f6212]">Cari balans</p>
-            <p className="mt-1 text-2xl font-bold text-[#166534]">
-              {profile?.credit_balance ?? 0} saat
-            </p>
-            <Link
-              to="/credits"
-              className="mt-1 inline-block text-[10px] font-semibold text-[#3f6212] underline"
-            >
-              Pulqabıya bax →
-            </Link>
-          </div>
+        {/* 2. PROFİL BAŞLIQ KARTI */}
+        <section className="rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center">
 
-          <button
-            onClick={openEditProfileModal}
-            className="mt-5 w-full rounded-xl border-2 border-[#c86ee8] py-2.5 text-sm font-semibold text-[#8b20d5] transition hover:bg-[#faf0fd]"
-          >
-            Profili redaktə et
-          </button>
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.full_name || 'İstifadəçi'}
+                className="h-24 w-24 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-200 to-pink-200 text-2xl font-bold text-purple-700">
+                {initials}
+              </div>
+            )}
 
-          <div className="mt-4 flex items-center justify-center gap-5 text-xs">
-            <button
-              onClick={() => setPwdModal(true)}
-              className="text-[#604c85] underline hover:text-[#8b20d5]"
-            >
-              Şifrəni dəyiş
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="text-[#604c85] underline hover:text-red-600"
-            >
-              Çıxış et
-            </button>
+            <div className="min-w-0 flex-1 text-center md:text-left">
+              <h2 className="text-2xl font-bold">
+                {profile?.full_name || 'İstifadəçi'}
+              </h2>
+
+              {profile?.university && (
+                <p className="text-[#89859A]">
+                  {profile.university}
+                </p>
+              )}
+
+              {profile?.bio && (
+                <p className="mt-2 text-sm text-[#89859A]">
+                  {profile.bio}
+                </p>
+              )}
+
+              <p className="mt-2 font-medium text-purple-500">
+                {rating ? (
+                  <>★★★★★ {rating} · {reviews?.length} rəy</>
+                ) : (
+                  <span className="text-[#89859A]">Hələ rəy yoxdur</span>
+                )}
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 md:items-end">
+              <button
+                onClick={openEditProfileModal}
+                className="rounded-xl bg-purple-100 px-5 py-3 font-semibold text-purple-700 transition hover:bg-purple-200"
+              >
+                Profili redaktə et
+              </button>
+              <div className="flex items-center gap-4 text-xs">
+                <button
+                  onClick={() => setPwdModal(true)}
+                  className="text-[#89859A] underline transition hover:text-purple-600"
+                >
+                  Şifrəni dəyiş
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="text-[#89859A] underline transition hover:text-red-500"
+                >
+                  Çıxış et
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* RIGHT SIDE */}
-        <section>
-
-          {/* SKILLS HEADER */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-[#24105c]">
-              Mənim bacarıqlarım: {mySkills.length}
-            </h2>
-            <button
-              onClick={openAddModal}
-              className="rounded-lg bg-[#8b20d5] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7415c2]"
+        {/* 3. STATİSTİKA */}
+        <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[
+            ['Öyrətdiyim saatlar', `${stats.teachingHours} saat`],
+            ['Öyrəndiyim saatlar', `${stats.learningHours} saat`],
+            ['Tamamlanan seanslar', `${stats.completedSessions}`],
+            ['Kredit balansı', `${profile?.credit_balance ?? 0} kredit`],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-[#F1ECFF] bg-white p-5 shadow-sm"
             >
-              + Bacarıq əlavə et
-            </button>
+              <p className="text-sm text-[#89859A]">{label}</p>
+              <h3 className="mt-2 text-2xl font-bold text-purple-600">
+                {value}
+              </h3>
+            </div>
+          ))}
+        </section>
+
+        {/* 4. BACARIQLARIM */}
+        <section className="rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-sm">
+          <h2 className="mb-5 text-xl font-bold">
+            Bacarıqlarım
+          </h2>
+
+          <div className="mb-5 flex flex-wrap gap-3">
+            {([
+              ['teach', `Öyrətdiklərim (${teachSkills.length})`],
+              ['learn', `Öyrəndiklərim (${learnSkills.length})`],
+            ] as [SkillType, string][]).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`rounded-xl px-5 py-2 text-sm font-semibold transition ${
+                  activeTab === tab
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {pageError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-600">
-              {pageError}
-            </div>
-          )}
-
-          {/* SKILL CARDS */}
-          {mySkills.length === 0 ? (
-            <div className="rounded-2xl border border-[#ecd1f6] bg-white px-6 py-10 text-center">
-              <p className="text-sm text-[#8065a8]">
-                Hələ paylaşdığın bacarıq yoxdur. "+ Bacarıq əlavə et" düyməsi ilə
-                bildiyin mövzuları əlavə et — digər istifadəçilər səndən dərs ala bilsin.
+          {tabSkills.length === 0 ? (
+            <div className="rounded-xl bg-[#faf9fd] px-6 py-8 text-center">
+              <p className="text-sm text-[#89859A]">
+                {activeTab === 'teach'
+                  ? 'Hələ paylaşdığın bacarıq yoxdur. "+ Bacarıq əlavə et" düyməsi ilə bildiyin mövzuları əlavə et — digər istifadəçilər səndən dərs ala bilsin.'
+                  : 'Öyrənmək istədiyin mövzu yoxdur. "+ Bacarıq əlavə et" düyməsi ilə hədəflərini əlavə et — uyğun müəllimləri tapmaq asanlaşsın.'}
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {mySkills.map(item => (
-                <article
+            <div className="space-y-3">
+              {tabSkills.map(item => (
+                <div
                   key={item.id}
-                  className="rounded-2xl border border-[#ecd1f6] bg-white px-5 py-4"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-[#faf9fd] p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.skills?.category && (
-                          <span className="rounded-full bg-[#f4e1fb] px-2.5 py-1 text-[10px] font-semibold text-[#8b20d5]">
-                            {item.skills.category}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 rounded-full bg-[#dcfce7] px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                          Aktiv
-                        </span>
-                      </div>
-
-                      <h3 className="mt-2 text-sm font-bold text-[#24105c]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">
                         {item.skills?.name ?? 'Bacarıq'}
                       </h3>
+                      {item.skills?.category && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            item.type === 'teach'
+                              ? 'bg-purple-50 text-purple-600'
+                              : 'bg-[#FCE7F3] text-pink-700'
+                          }`}
+                        >
+                          {item.skills.category}
+                        </span>
+                      )}
+                    </div>
 
-                      <p className="mt-1 text-[11px] text-[#8065a8]">
-                        {item.description
-                          ? item.description
-                          : item.level
-                            ? `Səviyyə: ${LEVEL_LABELS[item.level] ?? item.level}`
-                            : 'Təsvir əlavə edilməyib'}
+                    {item.level ? (
+                      <p className="mt-0.5 text-xs font-medium text-purple-500">
+                        Səviyyə: {LEVEL_LABELS[item.level] ?? item.level}
                       </p>
-                    </div>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-[#89859A]">
+                        Səviyyə təyin edilməyib
+                      </p>
+                    )}
 
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        onClick={() => openEditSkillModal(item)}
-                        disabled={busySkillId !== null}
-                        aria-label="Redaktə et"
-                        title="Redaktə et"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#ecd1f6] text-[#8b20d5] transition hover:bg-[#faf0fd] disabled:opacity-50"
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 20h9" strokeLinecap="round" />
-                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSkill(item.id)}
-                        disabled={busySkillId !== null}
-                        aria-label="Sil"
-                        title="Sil"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#ecd1f6] text-red-500 transition hover:bg-red-50 disabled:opacity-50"
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 6h18" strokeLinecap="round" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeLinecap="round" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    </div>
+                    {item.description && (
+                      <p className="mt-1 text-sm text-[#89859A]">
+                        {item.description}
+                      </p>
+                    )}
                   </div>
-                </article>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => openEditSkillModal(item)}
+                      disabled={busySkillId !== null}
+                      aria-label="Redaktə et"
+                      title="Redaktə et"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-500 transition hover:bg-purple-50 disabled:opacity-50"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 20h9" strokeLinecap="round" />
+                        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSkill(item.id)}
+                      disabled={busySkillId !== null}
+                      aria-label="Sil"
+                      title="Sil"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18" strokeLinecap="round" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeLinecap="round" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
 
-          {/* REVIEWS */}
-          <div className="mb-4 mt-10 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-            <h2 className="text-lg font-bold text-[#24105c]">Son rəylər</h2>
-            {reviewsAvailable && reviews && reviews.length > 0 && (
-              <Link
-                to="/credits"
-                className="text-xs font-semibold text-[#8b20d5] underline"
-              >
-                Hamısına bax
-              </Link>
-            )}
-          </div>
+          <button
+            onClick={() => openAddModal(activeTab)}
+            className="mt-5 font-semibold text-purple-600 transition hover:text-purple-700"
+          >
+            + Bacarıq əlavə et
+          </button>
+        </section>
+
+        {/* 5. SON RƏYLƏR */}
+        <section className="rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-sm">
+          <h2 className="mb-5 text-xl font-bold">Son rəylər</h2>
 
           {!reviewsAvailable ? (
-            <div className="rounded-2xl border border-[#ecd1f6] bg-white px-6 py-8 text-center">
-              <p className="text-sm text-[#8065a8]">
-                Rəylər bölməsi üçün bazada "reviews" cədvəli hələ yaradılmayıb.
-                repodakı <code className="rounded bg-[#faf4fd] px-1">src/database/03_reviews.sql</code> faylını
-                Supabase SQL redaktorunda işlətsən, burada alan şagirdlərin rəyləri görünəcək.
-              </p>
+            <div className="rounded-xl bg-[#faf9fd] p-4 text-center text-sm text-[#89859A]">
+              Rəylər bölməsi üçün bazada "reviews" cədvəli hələ yaradılmayıb.
+              Repodakı{' '}
+              <code className="rounded bg-[#F1ECFF] px-1 text-purple-700">
+                src/database/03_reviews.sql
+              </code>{' '}
+              faylını Supabase SQL redaktorunda işlətsən, tamamlanan
+              seanslardan sonra şagirdlərin rəyləri burada görünəcək.
             </div>
           ) : !reviews || reviews.length === 0 ? (
-            <div className="rounded-2xl border border-[#ecd1f6] bg-white px-6 py-8 text-center">
-              <p className="text-sm text-[#8065a8]">
-                Hələ rəy yoxdur. Tamamlanan seanslardan sonra şagirdlər burada rəy yaza bilər.
-              </p>
+            <div className="rounded-xl bg-[#faf9fd] p-4 text-center text-sm text-[#89859A]">
+              Hələ rəy yoxdur. Tamamlanan seanslardan sonra şagirdlər burada
+              rəy yaza bilər.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {reviews.map(review => (
-                <article
-                  key={review.id}
-                  className="rounded-2xl border border-[#ecd1f6] bg-white px-5 py-4"
-                >
+                <div key={review.id} className="rounded-xl bg-[#faf9fd] p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f4e1fb] text-xs font-bold text-[#8b20d5]">
-                      {initialsOf(review.reviewer?.full_name || 'İ')}
-                    </div>
+                    {review.reviewer?.avatar_url ? (
+                      <img
+                        src={review.reviewer.avatar_url}
+                        alt={review.reviewer.full_name || 'İstifadəçi'}
+                        className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-200 to-pink-200 text-xs font-bold text-purple-700">
+                        {initialsOf(review.reviewer?.full_name || 'İ')}
+                      </div>
+                    )}
+
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-[#24105c]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-semibold">
                           {review.reviewer?.full_name || 'İstifadəçi'}
                         </span>
-                        <span className="text-[10px] text-[#a58ab9]">
-                          {formatDate(review.created_at)}
+                        <span className="text-sm text-yellow-500">
+                          {'★'.repeat(review.rating)}
+                          <span className="text-gray-300">
+                            {'★'.repeat(5 - review.rating)}
+                          </span>
                         </span>
                       </div>
-                      <p className="text-sm text-[#f59e0b]">
-                        {'★'.repeat(review.rating)}
-                        <span className="text-[#d8c7e8]">
-                          {'★'.repeat(5 - review.rating)}
-                        </span>
-                      </p>
+                      <span className="text-[10px] text-[#89859A]">
+                        {formatDate(review.created_at)}
+                      </span>
                     </div>
                   </div>
 
                   {review.comment && (
-                    <p className="mt-3 text-xs leading-5 text-[#3b3155]">
+                    <p className="mt-2 text-sm text-[#89859A]">
                       {review.comment}
                     </p>
                   )}
 
                   {review.skill?.name && (
-                    <span className="mt-3 inline-block rounded-full bg-[#f4e1fb] px-2.5 py-1 text-[10px] font-semibold text-[#8b20d5]">
+                    <span className="mt-2 inline-block rounded-full bg-[#FCE7F3] px-2.5 py-1 text-[10px] font-semibold text-pink-700">
                       Seans: {review.skill.name}
                     </span>
                   )}
-                </article>
+                </div>
               ))}
             </div>
           )}
         </section>
+
       </div>
 
       {/* EDIT PROFILE MODAL */}
       {profileModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#24105c]/50 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
           onClick={() => !profileSaving && setProfileModal(false)}
         >
           <div
@@ -813,18 +878,18 @@ function Profile() {
             aria-modal="true"
             aria-labelledby="edit-profile-title"
             onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-2xl border border-[#eac8f5] bg-white p-6 shadow-2xl"
+            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
           >
             <h2
               id="edit-profile-title"
-              className="text-lg font-bold text-[#24105c]"
+              className="text-xl font-bold text-[#29243A]"
             >
               Profili redaktə et
             </h2>
 
             <form onSubmit={handleSaveProfile} className="mt-4 space-y-4">
               <div>
-                <label htmlFor="pf-name" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="pf-name" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Ad və soyad
                 </label>
                 <input
@@ -833,12 +898,12 @@ function Profile() {
                   value={editFullName}
                   onChange={e => setEditFullName(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label htmlFor="pf-bio" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="pf-bio" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Haqqımda
                 </label>
                 <textarea
@@ -848,13 +913,13 @@ function Profile() {
                   rows={3}
                   maxLength={400}
                   placeholder="Nə öyrədirsən, nə təcrübən var?"
-                  className="w-full resize-none rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label htmlFor="pf-avatar" className="mb-1 block text-xs font-semibold text-[#291078]">
-                  Avatar şəkil linki (istəyə bağlı)
+                <label htmlFor="pf-avatar" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                  Profil şəkli linki (istəyə bağlı)
                 </label>
                 <input
                   id="pf-avatar"
@@ -862,12 +927,12 @@ function Profile() {
                   value={editAvatarUrl}
                   onChange={e => setEditAvatarUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label htmlFor="pf-uni" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="pf-uni" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Universitet / iş yeri (istəyə bağlı)
                 </label>
                 <input
@@ -875,7 +940,7 @@ function Profile() {
                   type="text"
                   value={editUniversity}
                   onChange={e => setEditUniversity(e.target.value)}
-                  className="w-full rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
@@ -890,14 +955,14 @@ function Profile() {
                   type="button"
                   onClick={() => setProfileModal(false)}
                   disabled={profileSaving}
-                  className="flex-1 rounded-xl border border-[#e8b9f7] py-2.5 text-sm font-semibold text-[#604c85] transition hover:bg-[#faf4fd]"
+                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
                 >
                   Ləğv et
                 </button>
                 <button
                   type="submit"
                   disabled={profileSaving}
-                  className="flex-1 rounded-xl bg-[#861bd2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
                 >
                   {profileSaving ? 'Yadda saxlanır...' : 'Yadda saxla'}
                 </button>
@@ -910,7 +975,7 @@ function Profile() {
       {/* EDIT SKILL MODAL */}
       {editSkill && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#24105c]/50 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
           onClick={() => !skillSaving && closeAllSkillModals()}
         >
           <div
@@ -918,25 +983,25 @@ function Profile() {
             aria-modal="true"
             aria-labelledby="edit-skill-title"
             onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-2xl border border-[#eac8f5] bg-white p-6 shadow-2xl"
+            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
           >
             <h2
               id="edit-skill-title"
-              className="text-lg font-bold text-[#24105c]"
+              className="text-xl font-bold text-[#29243A]"
             >
               Bacarığı redaktə et: {editSkill.skills?.name}
             </h2>
 
             <form onSubmit={handleSaveSkill} className="mt-4 space-y-4">
               <div>
-                <label htmlFor="es-level" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="es-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Səviyyə
                 </label>
                 <select
                   id="es-level"
                   value={editLevel}
                   onChange={e => setEditLevel(e.target.value)}
-                  className="w-full rounded-xl border border-[#e8b9f7] bg-white px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 >
                   <option value="beginner">Başlanğıc</option>
                   <option value="intermediate">Orta səviyyə</option>
@@ -945,7 +1010,7 @@ function Profile() {
               </div>
 
               <div>
-                <label htmlFor="es-desc" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="es-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Təsvir
                 </label>
                 <textarea
@@ -954,10 +1019,14 @@ function Profile() {
                   onChange={e => setEditDescription(e.target.value)}
                   rows={3}
                   maxLength={300}
-                  placeholder="Nələri öyrədirsən? Müddət və format haqqında qeyd..."
-                  className="w-full resize-none rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  placeholder={
+                    editSkill.type === 'teach'
+                      ? 'Nələri öyrədirsən? Müddət və format haqqında qeyd...'
+                      : 'Nə öyrənmək istəyirsən? Hədəfin haqqında qeyd...'
+                  }
+                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
-                <p className="mt-1 text-right text-[10px] text-[#a58ab9]">
+                <p className="mt-1 text-right text-[10px] text-[#89859A]">
                   Məsələn: Müddət: 1-2 saat · Onlayn
                 </p>
               </div>
@@ -973,14 +1042,14 @@ function Profile() {
                   type="button"
                   onClick={closeAllSkillModals}
                   disabled={skillSaving}
-                  className="flex-1 rounded-xl border border-[#e8b9f7] py-2.5 text-sm font-semibold text-[#604c85] transition hover:bg-[#faf4fd]"
+                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
                 >
                   Ləğv et
                 </button>
                 <button
                   type="submit"
                   disabled={skillSaving}
-                  className="flex-1 rounded-xl bg-[#861bd2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
                 >
                   {skillSaving ? 'Yadda saxlanır...' : 'Yadda saxla'}
                 </button>
@@ -993,7 +1062,7 @@ function Profile() {
       {/* ADD SKILL MODAL */}
       {addModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#24105c]/50 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
           onClick={() => !addSaving && closeAllSkillModals()}
         >
           <div
@@ -1001,22 +1070,37 @@ function Profile() {
             aria-modal="true"
             aria-labelledby="add-skill-title"
             onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-2xl border border-[#eac8f5] bg-white p-6 shadow-2xl"
+            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
           >
             <h2
               id="add-skill-title"
-              className="text-lg font-bold text-[#24105c]"
+              className="text-xl font-bold text-[#29243A]"
             >
               + Bacarıq əlavə et
             </h2>
 
-            <p className="mt-1 text-xs text-[#8065a8]">
-              Bildiyin mövzunu seç — digər istifadəçilər səndən dərs ala bilsin.
+            <p className="mt-1 text-xs text-[#89859A]">
+              Mövzunu seç — öyrətdiyin və ya öyrənmək istədiyin bacarığı əlavə et.
             </p>
 
             <form onSubmit={handleAddSkill} className="mt-4 space-y-4">
               <div>
-                <label htmlFor="as-skill" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="as-type" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                  Növ
+                </label>
+                <select
+                  id="as-type"
+                  value={addType}
+                  onChange={e => setAddType(e.target.value as SkillType)}
+                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                >
+                  <option value="teach">Öyrədirəm — digərlərinə dərs verirəm</option>
+                  <option value="learn">Öyrənirəm — öyrənmək istəyirəm</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="as-skill" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Bacarıq
                 </label>
                 <select
@@ -1024,7 +1108,7 @@ function Profile() {
                   value={addSkillId}
                   onChange={e => setAddSkillId(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-[#e8b9f7] bg-white px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 >
                   <option value="">Bacarıq seç</option>
                   {catalog.map(item => (
@@ -1036,14 +1120,14 @@ function Profile() {
               </div>
 
               <div>
-                <label htmlFor="as-level" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="as-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Səviyyən
                 </label>
                 <select
                   id="as-level"
                   value={addLevel}
                   onChange={e => setAddLevel(e.target.value)}
-                  className="w-full rounded-xl border border-[#e8b9f7] bg-white px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 >
                   <option value="beginner">Başlanğıc</option>
                   <option value="intermediate">Orta səviyyə</option>
@@ -1052,7 +1136,7 @@ function Profile() {
               </div>
 
               <div>
-                <label htmlFor="as-desc" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="as-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Təsvir (istəyə bağlı)
                 </label>
                 <textarea
@@ -1062,7 +1146,7 @@ function Profile() {
                   rows={3}
                   maxLength={300}
                   placeholder="Məsələn: Müddət: 1-2 saat · Onlayn"
-                  className="w-full resize-none rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
@@ -1077,14 +1161,14 @@ function Profile() {
                   type="button"
                   onClick={closeAllSkillModals}
                   disabled={addSaving}
-                  className="flex-1 rounded-xl border border-[#e8b9f7] py-2.5 text-sm font-semibold text-[#604c85] transition hover:bg-[#faf4fd]"
+                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
                 >
                   Ləğv et
                 </button>
                 <button
                   type="submit"
                   disabled={addSaving || !addSkillId}
-                  className="flex-1 rounded-xl bg-[#861bd2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
                 >
                   {addSaving ? 'Əlavə olunur...' : 'Əlavə et'}
                 </button>
@@ -1097,7 +1181,7 @@ function Profile() {
       {/* CHANGE PASSWORD MODAL */}
       {pwdModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#24105c]/50 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
           onClick={() => !pwdSaving && setPwdModal(false)}
         >
           <div
@@ -1105,18 +1189,18 @@ function Profile() {
             aria-modal="true"
             aria-labelledby="pwd-title"
             onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-2xl border border-[#eac8f5] bg-white p-6 shadow-2xl"
+            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
           >
             <h2
               id="pwd-title"
-              className="text-lg font-bold text-[#24105c]"
+              className="text-xl font-bold text-[#29243A]"
             >
               Şifrəni dəyiş
             </h2>
 
             <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
               <div>
-                <label htmlFor="pwd-new" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="pwd-new" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Yeni şifrə
                 </label>
                 <input
@@ -1126,12 +1210,12 @@ function Profile() {
                   onChange={e => setNewPassword(e.target.value)}
                   minLength={6}
                   required
-                  className="w-full rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label htmlFor="pwd-confirm" className="mb-1 block text-xs font-semibold text-[#291078]">
+                <label htmlFor="pwd-confirm" className="mb-1 block text-xs font-semibold text-[#29243A]">
                   Yeni şifrə (təkrar)
                 </label>
                 <input
@@ -1140,7 +1224,7 @@ function Profile() {
                   value={confirmNewPassword}
                   onChange={e => setConfirmNewPassword(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-[#e8b9f7] px-3 py-2.5 text-sm text-[#291078] outline-none focus:border-[#8b20d5]"
+                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
                 />
               </div>
 
@@ -1161,7 +1245,7 @@ function Profile() {
                   type="button"
                   onClick={() => setPwdModal(false)}
                   disabled={pwdSaving}
-                  className="flex-1 rounded-xl border border-[#e8b9f7] py-2.5 text-sm font-semibold text-[#604c85] transition hover:bg-[#faf4fd]"
+                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
                 >
                   {pwdSuccess ? 'Bağla' : 'Ləğv et'}
                 </button>
@@ -1169,7 +1253,7 @@ function Profile() {
                   <button
                     type="submit"
                     disabled={pwdSaving}
-                    className="flex-1 rounded-xl bg-[#861bd2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-60"
+                    className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
                   >
                     {pwdSaving ? 'Dəyişdirilir...' : 'Dəyişdir'}
                   </button>
