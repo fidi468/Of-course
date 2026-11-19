@@ -10,7 +10,9 @@
     "language": "Dil seçin",
     "home": "Ana sayfa",
     "lessons": "Dersler",
-    "credits": "Krediler"
+    "credits": "Krediler",
+    "shareSkill": "Beceri paylaş",
+    "profile": "Profil"
   },
   "common": {
     "loading": "Yükleniyor...",
@@ -91,7 +93,8 @@
     "loading": "Gönderiliyor...",
     "success": "Kurtarma bağlantısı e-posta adresine gönderildi.",
     "back": "Girişe dön",
-    "error": "Kurtarma bağlantısı gönderilemedi."
+    "error": "Kurtarma bağlantısı gönderilemedi.",
+    "useCode": "E-postadaki kodla şifreyi sıfırla →"
   },
   "reset": {
     "title": "Yeni şifre belirle",
@@ -106,7 +109,16 @@
     "passwordShort": "Şifre en az 6 karakterden oluşmalıdır.",
     "success": "Şifren başarıyla güncellendi! Şimdi giriş yapabilirsin.",
     "back": "Giriş sayfasına git",
-    "error": "Şifre güncellenemedi."
+    "error": "Şifre güncellenemedi.",
+    "codeTitle": "Kodla şifreyi sıfırla",
+    "codeSubtitle": "E-postanıza gelen 6 haneli kodu ve e-posta adresinizi girin.",
+    "codeLabel": "E-postadaki kod",
+    "codeSubmit": "Onayla",
+    "codeChecking": "Onaylanıyor...",
+    "linkProblemTitle": "Bağlantı açılamadı",
+    "linkProblemText": "E-postadaki bağlantı bu sayfayı açmadı. E-postadaki kodla devam edebilir veya yeni bağlantı isteyebilirsin.",
+    "continueWithCode": "Kodla devam et",
+    "getNewLink": "Yeni bağlantı al"
   },
   "lessons": {
     "title": "Dersleri keşfet",

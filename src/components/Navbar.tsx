@@ -5,21 +5,11 @@ import { useCredits } from '../hooks/useCredits'
 import { useTranslation } from 'react-i18next'
 
 export default function Navbar() {
-  const { user, signOut, loading } = useAuth()
+  const { user, loading } = useAuth()
   const { balance, loading: creditsLoading } = useCredits()
   const navigate = useNavigate()
   const location = useLocation()
   const { t, i18n } = useTranslation()
-
-  async function handleSignOut() {
-    const { error } = await signOut()
-
-    if (!error) {
-      navigate('/', { replace: true })
-    } else {
-      console.error('Sign out error:', error)
-    }
-  }
 
   function handleLanguageChange(
     event: React.ChangeEvent<HTMLSelectElement>
@@ -34,6 +24,7 @@ export default function Navbar() {
   const navLinks = [
     { path: '/skills', label: t('nav.skills') },
     { path: '/requests', label: t('nav.requests') },
+    { path: '/sessions', label: t('nav.sessions') },
     { path: '/credits', label: t('nav.wallet') },
   ]
 
@@ -100,27 +91,30 @@ export default function Navbar() {
           ) : user ? (
             <>
               {/* Credit balance */}
-              <div className="bg-[#b8f5c2] text-[#166534] rounded-full px-2 sm:px-3 py-1.5">
+              <Link
+                to="/credits"
+                className="bg-[#b8f5c2] text-[#166534] rounded-full px-2 sm:px-3 py-1.5 hover:brightness-95 transition"
+              >
                 <span className="text-[8px] sm:text-[10px] font-bold whitespace-nowrap">
                   {creditsLoading
                     ? '...'
-                    : `${balance ?? 0} ${t('common.hours')}`}
+                    : `${t('common.balance')}: ${balance ?? 0} ${t('common.hours')}`}
                 </span>
-              </div>
+              </Link>
 
-              {/* Add credits */}
+              {/* Share a skill (goes to profile add-skill modal) */}
               <Link
-                to="/credits"
+                to="/profile?add=1"
                 className="bg-[#8b1fe0] hover:bg-[#7415c2] text-white rounded-full px-2 sm:px-3 py-1.5 text-[8px] sm:text-[10px] font-semibold whitespace-nowrap transition"
               >
-                {t('common.addCredits')}
+                {t('nav.shareSkill')}
               </Link>
 
               {/* Profile / Logout */}
               <button
-                onClick={handleSignOut}
-                title={t('nav.logout')}
-                aria-label={t('nav.logout')}
+                onClick={() => navigate('/profile')}
+                title={t('nav.profile')}
+                aria-label={t('nav.profile')}
                 className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#8b1fe0] text-white text-[10px] sm:text-xs font-bold flex items-center justify-center hover:bg-[#7415c2] transition"
               >
                 {userInitial}

@@ -10,7 +10,9 @@
     "language": "Dil seçin",
     "home": "Ana səhifə",
     "lessons": "Dərslər",
-    "credits": "Kreditlər"
+    "credits": "Kreditlər",
+    "shareSkill": "Bacarıq paylaş",
+    "profile": "Profil"
   },
   "common": {
     "loading": "Yüklənir...",
@@ -91,7 +93,8 @@
     "loading": "Göndərilir...",
     "success": "Bərpa linki e-poçt ünvanına göndərildi.",
     "back": "Girişə qayıt",
-    "error": "Bərpa linkini göndərmək mümkün olmadı."
+    "error": "Bərpa linkini göndərmək mümkün olmadı.",
+    "useCode": "E-poçtdakı kodla şifrəni sıfırla →"
   },
   "reset": {
     "title": "Yeni şifrə təyin et",
@@ -106,7 +109,16 @@
     "passwordShort": "Şifrə ən azı 6 simvoldan ibarət olmalıdır.",
     "success": "Şifrən uğurla yeniləndi! İndi hesabına daxil ola bilərsən.",
     "back": "Giriş səhifəsinə keç",
-    "error": "Şifrəni yeniləmək mümkün olmadı."
+    "error": "Şifrəni yeniləmək mümkün olmadı.",
+    "codeTitle": "Kodla şifrəni sıfırla",
+    "codeSubtitle": "E-poçta gələn 6 rəqəmli kodu və e-poçt ünvanını daxil et.",
+    "codeLabel": "E-poçtdakı kod",
+    "codeSubmit": "Təsdiqlə",
+    "codeChecking": "Təsdiqlənir...",
+    "linkProblemTitle": "Linki açmaq mümkün olmadı",
+    "linkProblemText": "E-poçtdakı link bu səhifəni açmadı. E-poçtdakı kodla davam edə və ya yeni link ala bilərsən.",
+    "continueWithCode": "Kodla davam et",
+    "getNewLink": "Yeni link al"
   },
   "lessons": {
     "title": "Dərsləri kəşf et",

@@ -10,7 +10,9 @@
     "language": "Choose language",
     "home": "Home",
     "lessons": "Lessons",
-    "credits": "Credits"
+    "credits": "Credits",
+    "shareSkill": "Share a skill",
+    "profile": "Profile"
   },
   "common": {
     "loading": "Loading...",
@@ -91,7 +93,8 @@
     "loading": "Sending...",
     "success": "A recovery link has been sent to your email address.",
     "back": "Back to login",
-    "error": "Unable to send the recovery link."
+    "error": "Unable to send the recovery link.",
+    "useCode": "Reset password with the code from the email →"
   },
   "reset": {
     "title": "Set a new password",
@@ -106,7 +109,16 @@
     "passwordShort": "Password must contain at least 6 characters.",
     "success": "Your password has been updated! You can now log in.",
     "back": "Go to login",
-    "error": "Unable to update your password."
+    "error": "Unable to update your password.",
+    "codeTitle": "Reset password with code",
+    "codeSubtitle": "Enter the 6-digit code sent to your email and your email address.",
+    "codeLabel": "Code from email",
+    "codeSubmit": "Verify",
+    "codeChecking": "Verifying...",
+    "linkProblemTitle": "Couldn't open the link",
+    "linkProblemText": "The link in the email didn't open this page. You can continue with the code from the email or request a new link.",
+    "continueWithCode": "Continue with code",
+    "getNewLink": "Get a new link"
   },
   "lessons": {
     "title": "Explore lessons",

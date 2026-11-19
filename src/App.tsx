@@ -14,11 +14,15 @@ import Lessons from './pages/Lessons'
 import Credits from './pages/Credits'
 import Skills from './pages/Skills'
 import Requests from './pages/Requests'
+import Sessions from './pages/Sessions'
+import Profile from './pages/Profile'
 import NotFound from './pages/NotFound'
+import RecoveryRedirect from './components/RecoveryRedirect'
 
 function App() {
   return (
     <BrowserRouter>
+      <RecoveryRedirect />
       <Routes>
         <Route element={<MainLayout />}>
 
@@ -39,6 +43,8 @@ function App() {
             <Route path="/credits" element={<Credits />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/requests" element={<Requests />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
 
           {/* Mövcud olmayan URL-lər üçün 404 */}

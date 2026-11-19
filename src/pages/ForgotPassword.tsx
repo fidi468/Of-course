@@ -41,7 +41,17 @@ function ForgotPassword() {
             <button type="submit" disabled={loading} className="w-full h-[58px] rounded-xl bg-[#8520d0] text-white font-semibold hover:bg-[#6f18b5] transition disabled:opacity-60">{loading ? t('forgot.loading') : t('forgot.submit')}</button>
           </form>
           {error && <p role="alert" className="text-red-600 mt-4 text-sm">{error}</p>}
-          {message && <p role="status" className="text-green-600 mt-4 text-sm">{message}</p>}
+          {message && (
+            <div className="mt-5 text-sm text-green-700">
+              <p>{message}</p>
+              <Link
+                to="/reset-password?mode=code"
+                className="inline-block mt-3 text-[#9225d8] font-semibold hover:underline"
+              >
+                {t('forgot.useCode')}
+              </Link>
+            </div>
+          )}
           <div className="text-right mt-7"><Link to="/login" className="text-sm text-[#9225d8] hover:underline">{t('forgot.back')}</Link></div>
         </div>
       </section>
