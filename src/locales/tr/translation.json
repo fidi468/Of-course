@@ -25,7 +25,8 @@
     "credits": "kredi",
     "noTransactions": "Henüz işlem yok.",
     "genericError": "Bir hata oluştu. Lütfen tekrar deneyin.",
-    "balance": "Bakiye"
+    "balance": "Bakiye",
+    "addCredits": "Bakiye yükle"
   },
   "home": {
     "eyebrow": "Bilgini paylaş, birlikte geliş",
@@ -118,5 +119,10 @@
     "loading": "Krediler yükleniyor...",
     "error": "Krediler yüklenemedi.",
     "retry": "Tekrar dene"
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "description": "Aradığınız sayfa mevcut değil veya taşınmış olabilir.",
+    "back": "Ana sayfaya dön"
   }
 }

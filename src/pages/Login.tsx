@@ -114,6 +114,15 @@ function Login() {
             </Link>
           </p>
 
+          <p className="text-center text-sm mt-3">
+            <Link
+              to="/forgot-password"
+              className="text-[#9225d8] hover:underline"
+            >
+              {t('login.forgotPassword')}
+            </Link>
+          </p>
+
         </div>
       </section>
 

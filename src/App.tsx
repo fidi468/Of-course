@@ -14,6 +14,7 @@ import Lessons from './pages/Lessons'
 import Credits from './pages/Credits'
 import Skills from './pages/Skills'
 import Requests from './pages/Requests'
+import NotFound from './pages/NotFound'
 
 function App() {
   return (
@@ -39,6 +40,9 @@ function App() {
             <Route path="/skills" element={<Skills />} />
             <Route path="/requests" element={<Requests />} />
           </Route>
+
+          {/* Mövcud olmayan URL-lər üçün 404 */}
+          <Route path="*" element={<NotFound />} />
 
         </Route>
       </Routes>

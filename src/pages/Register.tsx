@@ -138,7 +138,6 @@ function Register() {
                 placeholder={t('register.confirmPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                minLength={6}
                 required
                 className="w-full h-[60px] px-5 rounded-xl border-2 border-[#edc4fa] focus:outline-none focus:border-[#9225d8]"
               />

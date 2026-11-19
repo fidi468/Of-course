@@ -25,7 +25,8 @@
     "credits": "kredit",
     "noTransactions": "Hələ əməliyyat yoxdur.",
     "genericError": "Əməliyyat zamanı xəta baş verdi. Zəhmət olmasa, yenidən cəhd edin.",
-    "balance": "Balans"
+    "balance": "Balans",
+    "addCredits": "Balansı artır"
   },
   "home": {
     "eyebrow": "Bilik paylaş, birlikdə inkişaf et",
@@ -118,5 +119,10 @@
     "loading": "Kreditlər yüklənir...",
     "error": "Kreditləri yükləmək mümkün olmadı.",
     "retry": "Yenidən cəhd et"
+  },
+  "notFound": {
+    "title": "Səhifə tapılmadı",
+    "description": "Axtardığınız səhifə mövcud deyil və ya daşınmış ola bilər.",
+    "back": "Ana səhifəyə qayıt"
   }
 }

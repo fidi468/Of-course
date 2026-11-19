@@ -16,10 +16,17 @@ function ForgotPassword() {
     setLoading(true)
     setError('')
     setMessage('')
-    const result = await resetPassword(email)
-    if (result.error) setError(t('forgot.error'))
-    else setMessage(t('forgot.success'))
-    setLoading(false)
+
+    try {
+      const result = await resetPassword(email)
+      if (result.error) setError(t('forgot.error'))
+      else setMessage(t('forgot.success'))
+    } catch (err) {
+      console.error('Password reset error:', err)
+      setError(t('forgot.error'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -18,6 +18,51 @@ type Skill = {
   }
 }
 
+// Supabase sorğu nəticəsinin tipi (any əvəzinə)
+type UserSkillRow = {
+  id: number
+  level: string | null
+  description: string | null
+  skills: {
+    id: number
+    name: string
+    category: string
+  } | null
+  profiles: {
+    id: string
+    full_name: string
+    avatar_url: string | null
+  } | null
+}
+
+type CompleteUserSkillRow = UserSkillRow & {
+  skills: NonNullable<UserSkillRow['skills']>
+  profiles: NonNullable<UserSkillRow['profiles']>
+}
+
+// Supabase sorğu helper-i (setState yoxdur — komponent xaricində təmiz funksiya)
+async function fetchUserSkills() {
+  return supabase
+    .from('user_skills')
+    .select(`
+      id,
+      level,
+      description,
+      skills (
+        id,
+        name,
+        category
+      ),
+      profiles (
+        id,
+        full_name,
+        avatar_url
+      )
+    `)
+    .eq('type', 'teach')
+    .order('created_at', { ascending: false })
+}
+
 function Skills() {
   const { user } = useAuth()
 
@@ -37,54 +82,57 @@ function Skills() {
   const [requestSuccess, setRequestSuccess] = useState('')
 
   useEffect(() => {
+    if (!user) return
+
+    let ignore = false
+
+    // react.dev tövsiyəsi: fetch funksiyası effect daxilində,
+    // bütün setState çağırışları await-dən SONRA olur
     async function loadSkills() {
-      setLoading(true)
-      setError('')
+      try {
+        const { data, error } = await fetchUserSkills()
 
-      const { data, error } = await supabase
-        .from('user_skills')
-        .select(`
-          id,
-          level,
-          description,
-          skills (
-            id,
-            name,
-            category
-          ),
-          profiles (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('type', 'teach')
-        .order('created_at', { ascending: false })
+        if (ignore) return
 
-      if (error) {
-        setError(error.message)
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+          return
+        }
+
+        // Supabase-jS tip çıxarışı relation-ları massiv kimi göstərir; runtime-da
+        // many-to-one embed obyekt qaytarır — buna görə unknown üzərindən cast olunur
+        const formatted: Skill[] =
+          ((data ?? []) as unknown as UserSkillRow[])
+            .filter(
+              (item): item is CompleteUserSkillRow =>
+                Boolean(item.skills && item.profiles)
+            )
+            .map(item => ({
+              id: item.skills.id,
+              name: item.skills.name,
+              category: item.skills.category,
+              user_skill_id: item.id,
+              level: item.level,
+              description: item.description,
+              teacher: item.profiles,
+            }))
+
+        setSkills(formatted)
         setLoading(false)
-        return
+      } catch (err: unknown) {
+        if (ignore) return
+        setError(err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.')
+        setLoading(false)
       }
-
-      const formatted: Skill[] = (data ?? [])
-        .filter((item: any) => item.skills && item.profiles)
-        .map((item: any) => ({
-          id: item.skills.id,
-          name: item.skills.name,
-          category: item.skills.category,
-          user_skill_id: item.id,
-          level: item.level,
-          description: item.description,
-          teacher: item.profiles,
-        }))
-
-      setSkills(formatted)
-      setLoading(false)
     }
 
-    loadSkills()
-  }, [])
+    void loadSkills()
+
+    return () => {
+      ignore = true
+    }
+  }, [user])
 
   const categories = useMemo(
     () => ['Hamısı', ...Array.from(new Set(skills.map(s => s.category)))],
@@ -207,6 +255,9 @@ function Skills() {
     setScheduledAt('')
     setRequestError('')
   }
+
+  // Modal açılanda (event handler — render daxilində DEYİL) hesablanır
+  const [minScheduledAt, setMinScheduledAt] = useState('')
 
   return (
     <main className="min-h-screen bg-white text-[#291078]">
@@ -383,6 +434,11 @@ function Skills() {
                           setSelectedSkill(skill)
                           setRequestError('')
                           setRequestSuccess('')
+                          setMinScheduledAt(
+                            new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+                              .toISOString()
+                              .slice(0, 16)
+                          )
                         }}
                         className="mt-auto w-full rounded-lg bg-[#861bd2] py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#7015b5] disabled:cursor-not-allowed disabled:bg-gray-300"
                       >
@@ -668,9 +724,7 @@ function Skills() {
                   id="scheduledAt"
                   type="datetime-local"
                   value={scheduledAt}
-                  min={new Date(
-                    Date.now() - new Date().getTimezoneOffset() * 60000
-                  ).toISOString().slice(0, 16)}
+                  min={minScheduledAt}
                   onChange={e => setScheduledAt(e.target.value)}
                   className="w-full rounded-xl border border-[#e8b9f7] bg-white px-3 py-3 text-xs text-[#291078] outline-none transition focus:border-[#8b20d5]"
                 />

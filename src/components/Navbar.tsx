@@ -16,6 +16,8 @@ export default function Navbar() {
 
     if (!error) {
       navigate('/', { replace: true })
+    } else {
+      console.error('Sign out error:', error)
     }
   }
 
@@ -32,7 +34,6 @@ export default function Navbar() {
   const navLinks = [
     { path: '/skills', label: t('nav.skills') },
     { path: '/requests', label: t('nav.requests') },
-    { path: '/sessions', label: t('nav.sessions') },
     { path: '/credits', label: t('nav.wallet') },
   ]
 
@@ -112,9 +113,7 @@ export default function Navbar() {
                 to="/credits"
                 className="bg-[#8b1fe0] hover:bg-[#7415c2] text-white rounded-full px-2 sm:px-3 py-1.5 text-[8px] sm:text-[10px] font-semibold whitespace-nowrap transition"
               >
-                {t('common.addCredits', {
-                  defaultValue: 'Balansı artır',
-                })}
+                {t('common.addCredits')}
               </Link>
 
               {/* Profile / Logout */}

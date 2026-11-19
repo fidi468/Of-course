@@ -19,10 +19,17 @@ function ResetPassword() {
     if (password !== confirmPassword) { setError(t('reset.passwordMismatch')); return }
     if (password.length < 6) { setError(t('reset.passwordShort')); return }
     setLoading(true)
-    const result = await updatePassword(password)
-    if (result.error) setError(t('reset.error'))
-    else { setMessage(t('reset.success')); setPassword(''); setConfirmPassword('') }
-    setLoading(false)
+
+    try {
+      const result = await updatePassword(password)
+      if (result.error) setError(t('reset.error'))
+      else { setMessage(t('reset.success')); setPassword(''); setConfirmPassword('') }
+    } catch (err) {
+      console.error('Password update error:', err)
+      setError(t('reset.error'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

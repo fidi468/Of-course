@@ -37,6 +37,40 @@ type LessonRequest = {
   } | null
 }
 
+// Supabase sorğu helper-i (setState yoxdur — komponent xaricində təmiz funksiya)
+async function fetchLessonRequests(userId: string) {
+  return supabase
+    .from('lesson_requests')
+    .select(`
+      id,
+      requester_id,
+      teacher_id,
+      skill_id,
+      duration_hours,
+      message,
+      scheduled_at,
+      status,
+      created_at,
+      requester:profiles!lesson_requests_requester_id_fkey (
+        id,
+        full_name,
+        avatar_url
+      ),
+      teacher:profiles!lesson_requests_teacher_id_fkey (
+        id,
+        full_name,
+        avatar_url
+      ),
+      skill:skills (
+        id,
+        name,
+        category
+      )
+    `)
+    .or(`requester_id.eq.${userId},teacher_id.eq.${userId}`)
+    .order('created_at', { ascending: false })
+}
+
 const statusLabels: Record<RequestStatus, string> = {
   pending: 'Gözləyir',
   accepted: 'Qəbul edilib',
@@ -66,42 +100,11 @@ function Requests() {
   const [processingId, setProcessingId] = useState<number | null>(null)
   const [successMessage, setSuccessMessage] = useState('')
 
+  // Əməliyyatlardan sonra siyahını səssiz yeniləyir (loading-i yenidən true etmir)
   const loadRequests = useCallback(async () => {
     if (!user) return
 
-    setLoading(true)
-    setPageError('')
-
-    const { data, error } = await supabase
-      .from('lesson_requests')
-      .select(`
-        id,
-        requester_id,
-        teacher_id,
-        skill_id,
-        duration_hours,
-        message,
-        scheduled_at,
-        status,
-        created_at,
-        requester:profiles!lesson_requests_requester_id_fkey (
-          id,
-          full_name,
-          avatar_url
-        ),
-        teacher:profiles!lesson_requests_teacher_id_fkey (
-          id,
-          full_name,
-          avatar_url
-        ),
-        skill:skills (
-          id,
-          name,
-          category
-        )
-      `)
-      .or(`requester_id.eq.${user.id},teacher_id.eq.${user.id}`)
-      .order('created_at', { ascending: false })
+    const { data, error } = await fetchLessonRequests(user.id)
 
     if (error) {
       setPageError(error.message)
@@ -113,9 +116,35 @@ function Requests() {
     setLoading(false)
   }, [user])
 
+  // react.dev tövsiyəsi: fetch funksiyası effect daxilində,
+  // bütün setState çağırışları await-dən SONRA olur
   useEffect(() => {
-    loadRequests()
-  }, [loadRequests])
+    if (!user) return
+
+    let ignore = false
+    const userId = user.id
+
+    async function fetchRequests() {
+      const { data, error } = await fetchLessonRequests(userId)
+
+      if (ignore) return
+
+      if (error) {
+        setPageError(error.message)
+        setLoading(false)
+        return
+      }
+
+      setRequests((data ?? []) as unknown as LessonRequest[])
+      setLoading(false)
+    }
+
+    void fetchRequests()
+
+    return () => {
+      ignore = true
+    }
+  }, [user])
 
   const incomingRequests = requests.filter(
     request => request.teacher_id === user?.id
@@ -135,21 +164,29 @@ function Requests() {
     setActionError('')
     setSuccessMessage('')
 
-    const { error } = await supabase.rpc('respond_to_request', {
-      p_request_id: requestId,
-      p_accept: accept,
-    })
+    try {
+      const { error } = await supabase.rpc('respond_to_request', {
+        p_request_id: requestId,
+        p_accept: accept,
+      })
 
-    if (error) {
-      setActionError(error.message)
-    } else {
-      setSuccessMessage(
-        accept ? 'Sorğu qəbul edildi!' : 'Sorğu rədd edildi.'
+      if (error) {
+        setActionError(error.message)
+      } else {
+        setSuccessMessage(
+          accept ? 'Sorğu qəbul edildi!' : 'Sorğu rədd edildi.'
+        )
+        await loadRequests()
+      }
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
       )
-      await loadRequests()
+    } finally {
+      setProcessingId(null)
     }
-
-    setProcessingId(null)
   }
 
   async function handleCancel(requestId: number) {
@@ -165,18 +202,26 @@ function Requests() {
     setActionError('')
     setSuccessMessage('')
 
-    const { error } = await supabase.rpc('cancel_request', {
-      p_request_id: requestId,
-    })
+    try {
+      const { error } = await supabase.rpc('cancel_request', {
+        p_request_id: requestId,
+      })
 
-    if (error) {
-      setActionError(error.message)
-    } else {
-      setSuccessMessage('Sorğu ləğv edildi.')
-      await loadRequests()
+      if (error) {
+        setActionError(error.message)
+      } else {
+        setSuccessMessage('Sorğu ləğv edildi.')
+        await loadRequests()
+      }
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
+      )
+    } finally {
+      setProcessingId(null)
     }
-
-    setProcessingId(null)
   }
 
   async function handleComplete(requestId: number) {
@@ -192,18 +237,26 @@ function Requests() {
     setActionError('')
     setSuccessMessage('')
 
-    const { error } = await supabase.rpc('complete_lesson', {
-      p_request_id: requestId,
-    })
+    try {
+      const { error } = await supabase.rpc('complete_lesson', {
+        p_request_id: requestId,
+      })
 
-    if (error) {
-      setActionError(error.message)
-    } else {
-      setSuccessMessage('Dərs tamamlandı və kreditlər köçürüldü!')
-      await loadRequests()
+      if (error) {
+        setActionError(error.message)
+      } else {
+        setSuccessMessage('Dərs tamamlandı və kreditlər köçürüldü!')
+        await loadRequests()
+      }
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
+      )
+    } finally {
+      setProcessingId(null)
     }
-
-    setProcessingId(null)
   }
 
   function formatDate(value: string | null) {
