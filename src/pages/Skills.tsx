@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
+import { useTranslation } from 'react-i18next'
 
 type Skill = {
   id: number
@@ -63,12 +64,16 @@ async function fetchUserSkills() {
     .order('created_at', { ascending: false })
 }
 
+// "Hamısı" filtri üçün sentinel — real kateqoriya adları ilə toqquşmasın
+const ALL_CATEGORIES = '__all__'
+
 function Skills() {
   const { user } = useAuth()
+  const { t } = useTranslation()
 
   const [skills, setSkills] = useState<Skill[]>([])
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('Hamısı')
+  const [category, setCategory] = useState(ALL_CATEGORIES)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -122,7 +127,7 @@ function Skills() {
         setLoading(false)
       } catch (err: unknown) {
         if (ignore) return
-        setError(err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.')
+        setError(err instanceof Error ? err.message : t('skills.unexpected'))
         setLoading(false)
       }
     }
@@ -132,10 +137,10 @@ function Skills() {
     return () => {
       ignore = true
     }
-  }, [user])
+  }, [user, t])
 
   const categories = useMemo(
-    () => ['Hamısı', ...Array.from(new Set(skills.map(s => s.category)))],
+    () => [...Array.from(new Set(skills.map(s => s.category)))],
     [skills]
   )
 
@@ -149,7 +154,7 @@ function Skills() {
         skill.teacher.full_name.toLowerCase().includes(query)
 
       const matchesCategory =
-        category === 'Hamısı' || skill.category === category
+        category === ALL_CATEGORIES || skill.category === category
 
       return matchesSearch && matchesCategory
     })
@@ -163,7 +168,6 @@ function Skills() {
   const popularCategories = useMemo(
     () =>
       categories
-        .filter(item => item !== 'Hamısı')
         .map(name => ({
           name,
           count: skills.filter(s => s.category === name).length,
@@ -207,7 +211,7 @@ function Skills() {
     if (!user || !selectedSkill || submitting) return
 
     if (user.id === selectedSkill.teacher.id) {
-      setRequestError('Öz bacarığına sifariş göndərə bilməzsən.')
+      setRequestError(t('skills.selfRequest'))
       return
     }
 
@@ -238,9 +242,9 @@ function Skills() {
       setDurationHours(1)
       setMessage('')
       setScheduledAt('')
-      setRequestSuccess('Sorğun uğurla göndərildi!')
+      setRequestSuccess(t('skills.success'))
     } catch {
-      setRequestError('Gözlənilməz xəta baş verdi. Yenidən cəhd et.')
+      setRequestError(t('skills.unexpected'))
     } finally {
       setSubmitting(false)
     }
@@ -259,6 +263,10 @@ function Skills() {
   // Modal açılanda (event handler — render daxilində DEYİL) hesablanır
   const [minScheduledAt, setMinScheduledAt] = useState('')
 
+  const popularSearches = t('skills.popularList', {
+    returnObjects: true,
+  }) as string[]
+
   return (
     <main className="min-h-screen bg-white text-[#291078]">
 
@@ -268,16 +276,15 @@ function Skills() {
 
           <div className="text-center">
             <span className="inline-block rounded-full bg-[#f4e1fb] px-4 py-1.5 text-[10px] font-semibold text-[#8b20d5]">
-              Gənclər üçün ödənişsiz bacarıq və vaxt mübadiləsi
+              {t('skills.eyebrow')}
             </span>
 
             <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-              Bacarıq axtar
+              {t('skills.title')}
             </h1>
 
             <p className="mx-auto mt-2 max-w-lg text-xs leading-6 text-[#796b9e] sm:text-sm">
-              Öyrənmək istədiyin bacarığı tap və ya özün bildiyini paylaş.
-              Birlikdə öyrən, birlikdə inkişaf et!
+              {t('skills.subtitle')}
             </p>
           </div>
 
@@ -291,7 +298,7 @@ function Skills() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Bacarıq və ya ad axtar..."
+              placeholder={t('skills.searchPlaceholder')}
               className="h-full min-w-0 flex-1 bg-transparent px-3 text-xs outline-none"
             />
 
@@ -299,13 +306,13 @@ function Skills() {
               type="submit"
               className="rounded-lg bg-[#861bd2] px-5 py-2 text-xs font-semibold text-white transition hover:bg-[#7015b5]"
             >
-              Axtar
+              {t('skills.searchBtn')}
             </button>
           </form>
 
           {/* Popular searches */}
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {['Python', 'İngilis dili', 'Gitara', 'Qrafik dizayn', 'UI/UX dizayn'].map(item => (
+            {popularSearches.map(item => (
               <button
                 key={item}
                 onClick={() => setSearch(item)}
@@ -319,19 +326,19 @@ function Skills() {
           {/* Statistics */}
           <div className="mt-6 grid grid-cols-2 gap-3 rounded-xl bg-[#f8effd] p-4 text-center sm:grid-cols-3">
             <div>
-              <p className="text-[10px] text-[#8065a8]">Paylaşılan bacarıqlar</p>
+              <p className="text-[10px] text-[#8065a8]">{t('skills.statShared')}</p>
               <p className="mt-1 text-xl font-bold">{skills.length}</p>
             </div>
 
             <div>
-              <p className="text-[10px] text-[#8065a8]">Bacarıq paylaşanlar</p>
+              <p className="text-[10px] text-[#8065a8]">{t('skills.statSharers')}</p>
               <p className="mt-1 text-xl font-bold">{teacherCount}</p>
             </div>
 
             <div className="col-span-2 sm:col-span-1">
-              <p className="text-[10px] text-[#8065a8]">Kateqoriyalar</p>
+              <p className="text-[10px] text-[#8065a8]">{t('skills.statCategories')}</p>
               <p className="mt-1 text-xl font-bold">
-                {categories.length - 1}
+                {categories.length}
               </p>
             </div>
           </div>
@@ -348,35 +355,46 @@ function Skills() {
                     : 'border-[#e8b9f7] bg-white text-[#57318d] hover:bg-[#f8effd]'
                 }`}
               >
-                {item === 'Hamısı' ? 'Bütün sahələr' : item}
+                {item}
               </button>
             ))}
+
+            <button
+              onClick={() => setCategory(ALL_CATEGORIES)}
+              className={`rounded-full border px-3 py-1.5 text-[10px] transition ${
+                category === ALL_CATEGORIES
+                  ? 'border-[#8b20d5] bg-[#8b20d5] text-white'
+                  : 'border-[#e8b9f7] bg-white text-[#57318d] hover:bg-[#f8effd]'
+              }`}
+            >
+              {t('skills.allCategories')}
+            </button>
           </div>
 
           {/* Skills */}
           <div className="mt-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-bold">Bacarıqlar</h2>
+              <h2 className="text-base font-bold">{t('skills.skillsTitle')}</h2>
               <span className="text-[10px] text-[#8065a8]">
-                {filteredSkills.length} nəticə
+                {t('skills.resultsCount', { count: filteredSkills.length })}
               </span>
             </div>
 
             {loading && (
               <p className="py-12 text-center text-sm text-[#8065a8]">
-                Bacarıqlar yüklənir...
+                {t('skills.loading')}
               </p>
             )}
 
             {error && (
               <p className="py-12 text-center text-sm text-red-600">
-                Xəta: {error}
+                {t('skills.errorWithMessage', { message: error })}
               </p>
             )}
 
             {!loading && !error && filteredSkills.length === 0 && (
               <p className="rounded-xl bg-[#faf4fd] py-12 text-center text-sm text-[#8065a8]">
-                Axtarışa uyğun bacarıq tapılmadı.
+                {t('skills.notFound')}
               </p>
             )}
 
@@ -384,6 +402,18 @@ function Skills() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredSkills.map(skill => {
                   const isOwnSkill = user?.id === skill.teacher.id
+                  const level = skill.level
+                    ? t('skills.levelOf', {
+                        level:
+                          skill.level === 'beginner'
+                            ? t('profile.levelBeginner')
+                            : skill.level === 'intermediate'
+                              ? t('profile.levelIntermediate')
+                              : skill.level === 'advanced'
+                                ? t('profile.levelAdvanced')
+                                : skill.level,
+                      })
+                    : null
 
                   return (
                     <article
@@ -412,13 +442,13 @@ function Skills() {
                         </div>
 
                         <p className="text-[10px] font-medium text-[#604c85]">
-                          {skill.teacher.full_name || 'İstifadəçi'}
+                          {skill.teacher.full_name || t('skills.user')}
                         </p>
                       </div>
 
-                      {skill.level && (
+                      {level && (
                         <p className="mt-2 text-[10px] text-[#8065a8]">
-                          Səviyyə: {skill.level}
+                          {level}
                         </p>
                       )}
 
@@ -442,7 +472,7 @@ function Skills() {
                         }}
                         className="mt-auto w-full rounded-lg bg-[#861bd2] py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#7015b5] disabled:cursor-not-allowed disabled:bg-gray-300"
                       >
-                        {isOwnSkill ? 'Öz bacarığındır' : 'Seans sifariş et'}
+                        {isOwnSkill ? t('skills.ownSkill') : t('skills.order')}
                       </button>
                     </article>
                   )
@@ -458,15 +488,15 @@ function Skills() {
         <div className="mx-auto max-w-[1000px]">
           <div className="text-center">
             <p className="text-[9px] font-semibold uppercase tracking-widest text-[#a06ac4]">
-              Sadə sistem
+              {t('skills.howEyebrow')}
             </p>
 
             <h2 className="mt-2 text-xl font-bold">
-              Platforma necə işləyir?
+              {t('skills.howTitle')}
             </h2>
 
             <p className="mt-2 text-[11px] text-[#8065a8]">
-              Biliklərini paylaş, yeni bacarıqlar qazan və vaxtını dəyərləndir.
+              {t('skills.howSubtitle')}
             </p>
           </div>
 
@@ -474,18 +504,18 @@ function Skills() {
             {[
               {
                 number: '01',
-                title: 'Bacarıqlarını paylaş',
-                description: 'Bildiyin mövzuları digər gənclərə öyrət və öz biliklərini paylaş.',
+                title: t('skills.step1Title'),
+                description: t('skills.step1Description'),
               },
               {
                 number: '02',
-                title: 'Kredit balansını yarat',
-                description: 'Dərs keçərək kredit qazan və öyrənmək üçün istifadə et.',
+                title: t('skills.step2Title'),
+                description: t('skills.step2Description'),
               },
               {
                 number: '03',
-                title: 'Yeni bacarıqlar öyrən',
-                description: 'İstədiyin sahədə mentor tap və öyrənməyə başla.',
+                title: t('skills.step3Title'),
+                description: t('skills.step3Description'),
               },
             ].map(item => (
               <article
@@ -512,15 +542,15 @@ function Skills() {
         <div className="mx-auto max-w-[1000px]">
           <div className="text-center">
             <p className="text-[9px] font-semibold uppercase tracking-widest text-[#a06ac4]">
-              İstək lövhəsi
+              {t('skills.wishEyebrow')}
             </p>
 
             <h2 className="mt-2 text-xl font-bold">
-              Gənclər nə öyrənmək istəyir?
+              {t('skills.wishTitle')}
             </h2>
 
             <p className="mt-2 text-[11px] text-[#8065a8]">
-              Müxtəlif sahələrdən bacarıqları kəşf et.
+              {t('skills.wishSubtitle')}
             </p>
           </div>
 
@@ -539,11 +569,11 @@ function Skills() {
                 </span>
 
                 <p className="mt-3 text-[10px] text-[#8065a8]">
-                  {item.count} paylaşılmış bacarıq
+                  {t('skills.sharedCount', { count: item.count })}
                 </p>
 
                 <span className="mt-3 inline-block text-[10px] font-semibold text-[#8b20d5]">
-                  Bacarıqlara bax →
+                  {t('skills.viewSkills')}
                 </span>
               </button>
             ))}
@@ -556,15 +586,15 @@ function Skills() {
         <div className="mx-auto max-w-[1000px]">
           <div className="text-center">
             <p className="text-[9px] font-semibold uppercase tracking-widest text-[#a06ac4]">
-              Paylaşım liderləri
+              {t('skills.leadersEyebrow')}
             </p>
 
             <h2 className="mt-2 text-xl font-bold">
-              Ən çox bacarıq paylaşan gənclər
+              {t('skills.leadersTitle')}
             </h2>
 
             <p className="mt-2 text-[11px] text-[#8065a8]">
-              Biliklərini paylaşaraq icmamızı inkişaf etdirənlər.
+              {t('skills.leadersSubtitle')}
             </p>
           </div>
 
@@ -592,18 +622,18 @@ function Skills() {
                   </div>
 
                   <h3 className="mt-2 text-xs font-bold">
-                    {teacher.name || 'İstifadəçi'}
+                    {teacher.name || t('skills.user')}
                   </h3>
 
                   <p className="mt-2 text-[10px] text-[#8065a8]">
-                    {teacher.count} bacarıq paylaşır
+                    {t('skills.sharesCount', { count: teacher.count })}
                   </p>
                 </article>
               ))}
             </div>
           ) : (
             <p className="mt-6 text-center text-xs text-[#8065a8]">
-              Hələ paylaşım edən istifadəçi yoxdur.
+              {t('skills.noSharers')}
             </p>
           )}
         </div>
@@ -619,7 +649,7 @@ function Skills() {
             onClick={() => setRequestSuccess('')}
             className="mt-2 text-xs text-[#8065a8] underline"
           >
-            Bağla
+            {t('skills.close')}
           </button>
         </div>
       )}
@@ -643,32 +673,32 @@ function Skills() {
               onClick={closeModal}
               disabled={submitting}
               className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-[#f8effd] text-lg text-[#8065a8] transition hover:bg-[#efdafa] disabled:opacity-50"
-              aria-label="Bağla"
+              aria-label={t('skills.close')}
             >
               ×
             </button>
 
             <div className="mb-5">
               <span className="inline-block rounded-full bg-[#f4e1fb] px-3 py-1 text-[10px] font-semibold text-[#8b20d5]">
-                Of Course · Seans sifarişi
+                {t('skills.modalEyebrow')}
               </span>
 
               <h2
                 id="booking-title"
                 className="mt-3 text-xl font-bold text-[#291078]"
               >
-                Seans sifariş et
+                {t('skills.modalTitle')}
               </h2>
 
               <p className="mt-1 text-xs leading-5 text-[#8065a8]">
-                Müəllimə dərs sorğusu göndərmək üçün məlumatları doldur.
+                {t('skills.modalSubtitle')}
               </p>
             </div>
 
             {/* Selected skill */}
             <div className="mb-5 rounded-xl border border-[#ecd1f6] bg-[#faf4fd] p-4">
               <p className="text-[10px] text-[#8065a8]">
-                Seçilmiş bacarıq
+                {t('skills.selectedSkill')}
               </p>
 
               <h3 className="mt-1 text-sm font-bold text-[#8b20d5]">
@@ -676,7 +706,9 @@ function Skills() {
               </h3>
 
               <p className="mt-1 text-xs text-[#604c85]">
-                Müəllim: {selectedSkill.teacher.full_name || 'İstifadəçi'}
+                {t('skills.teacher', {
+                  name: selectedSkill.teacher.full_name || t('skills.user'),
+                })}
               </p>
 
               <p className="mt-1 text-[10px] text-[#8065a8]">
@@ -692,7 +724,7 @@ function Skills() {
                   htmlFor="duration"
                   className="mb-2 block text-xs font-semibold text-[#291078]"
                 >
-                  Seans müddəti
+                  {t('skills.durationLabel')}
                 </label>
 
                 <select
@@ -701,10 +733,11 @@ function Skills() {
                   onChange={e => setDurationHours(Number(e.target.value))}
                   className="w-full rounded-xl border border-[#e8b9f7] bg-white px-3 py-3 text-xs text-[#291078] outline-none transition focus:border-[#8b20d5]"
                 >
-                  <option value={1}>1 saat · 1 kredit</option>
-                  <option value={2}>2 saat · 2 kredit</option>
-                  <option value={3}>3 saat · 3 kredit</option>
-                  <option value={4}>4 saat · 4 kredit</option>
+                  {[1, 2, 3, 4].map(hours => (
+                    <option key={hours} value={hours}>
+                      {t('skills.hoursCredits', { count: hours })}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -714,9 +747,9 @@ function Skills() {
                   htmlFor="scheduledAt"
                   className="mb-2 block text-xs font-semibold text-[#291078]"
                 >
-                  İstədiyin tarix və saat
+                  {t('skills.whenLabel')}
                   <span className="ml-1 font-normal text-[#a58ab9]">
-                    (İstəyə bağlı)
+                    {t('skills.optional')}
                   </span>
                 </label>
 
@@ -736,9 +769,9 @@ function Skills() {
                   htmlFor="bookingMessage"
                   className="mb-2 block text-xs font-semibold text-[#291078]"
                 >
-                  Müəllimə mesajın
+                  {t('skills.messageLabel')}
                   <span className="ml-1 font-normal text-[#a58ab9]">
-                    (İstəyə bağlı)
+                    {t('skills.optional')}
                   </span>
                 </label>
 
@@ -748,7 +781,7 @@ function Skills() {
                   onChange={e => setMessage(e.target.value)}
                   maxLength={500}
                   rows={3}
-                  placeholder="Hansı mövzunu öyrənmək istədiyini yaza bilərsən..."
+                  placeholder={t('skills.messagePlaceholder')}
                   className="w-full resize-none rounded-xl border border-[#e8b9f7] bg-white px-3 py-3 text-xs text-[#291078] outline-none transition placeholder:text-[#b49ac5] focus:border-[#8b20d5]"
                 />
 
@@ -770,11 +803,11 @@ function Skills() {
                 disabled={submitting}
                 className="w-full rounded-xl bg-[#861bd2] py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#7015b5] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? 'Göndərilir...' : 'Sorğunu göndər'}
+                {submitting ? t('skills.sending') : t('skills.sendBtn')}
               </button>
 
               <p className="text-center text-[10px] leading-5 text-[#8065a8]">
-                Sorğu müəllimə göndəriləcək. Kreditlər dərs tamamlandıqdan sonra hesablanacaq.
+                {t('skills.modalNote')}
               </p>
             </form>
           </div>

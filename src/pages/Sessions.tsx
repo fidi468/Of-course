@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
+import { useTranslation } from 'react-i18next'
 
 type SessionRow = {
   id: number
@@ -62,20 +63,19 @@ function fetchSessions(userId: string) {
     .order('created_at', { ascending: false })
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return 'Tarix təyin edilməyib'
-
-  return new Date(value).toLocaleString('az-AZ', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+// Dil kodu → toLocaleString locale kodu
+const DATE_LOCALES: Record<string, string> = {
+  az: 'az-AZ',
+  en: 'en-GB',
+  ru: 'ru-RU',
+  tr: 'tr-TR',
 }
 
 function Sessions() {
   const { user } = useAuth()
+  const { t, i18n } = useTranslation()
+
+  const dateLocale = DATE_LOCALES[i18n.resolvedLanguage ?? 'az'] ?? 'az-AZ'
 
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,12 +128,30 @@ function Sessions() {
       : session.teacher
   }
 
-  function getRoleLabel(session: SessionRow) {
-    return session.teacher_id === user?.id ? 'Müəllim' : 'Şagird'
+  function isUserTeacher(session: SessionRow) {
+    return session.teacher_id === user?.id
+  }
+
+  function formatDateTime(value: string | null) {
+    if (!value) return t('sessions.dateNotSet')
+
+    return new Date(value).toLocaleString(dateLocale, {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
   }
 
   function renderSessionCard(session: SessionRow, isPast: boolean) {
     const other = getOtherPerson(session)
+    const role = isUserTeacher(session)
+      ? t('sessions.roleTeacher')
+      : t('sessions.roleStudent')
+    const otherRole = isUserTeacher(session)
+      ? t('sessions.roleStudent')
+      : t('sessions.roleTeacher')
 
     return (
       <article
@@ -150,26 +168,34 @@ function Sessions() {
                     : 'bg-[#dcfce7] text-green-700'
                 }`}
               >
-                {isPast ? 'Tamamlanıb' : 'Planlaşdırılıb'}
+                {isPast ? t('sessions.badgeCompleted') : t('sessions.badgeScheduled')}
               </span>
               <span className="rounded-full bg-[#f4e1fb] px-2.5 py-1 text-[10px] font-semibold text-[#8b20d5]">
-                {getRoleLabel(session)}
+                {role}
               </span>
             </div>
 
             <h3 className="mt-2 text-sm font-bold text-[#24105c]">
-              {session.skill?.name ?? 'Seans'}
+              {session.skill?.name ?? t('sessions.session')}
             </h3>
 
             <p className="mt-1 text-[11px] text-[#8065a8]">
-              {session.teacher_id === user?.id ? 'Şagird' : 'Müəllim'}:{' '}
-              {other?.full_name || 'İstifadəçi'} · Müddət: {session.duration_hours} saat
+              {t('sessions.personRole', {
+                role: otherRole,
+                name: other?.full_name || t('sessions.user'),
+              })}
+              {' · '}
+              {t('sessions.durationOf', { count: session.duration_hours })}
             </p>
 
             <p className="mt-1 text-[11px] text-[#604c85]">
               {isPast
-                ? `Bitib: ${formatDateTime(session.completed_at)}`
-                : `Vaxt: ${formatDateTime(session.scheduled_at)}`}
+                ? t('sessions.completedAt', {
+                    date: formatDateTime(session.completed_at),
+                  })
+                : t('sessions.scheduledAt', {
+                    date: formatDateTime(session.scheduled_at),
+                  })}
             </p>
           </div>
         </div>
@@ -182,14 +208,14 @@ function Sessions() {
       <div className="mx-auto max-w-[1000px]">
 
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold sm:text-3xl">Seanslarım</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">{t('sessions.title')}</h1>
           <p className="mx-auto mt-2 max-w-lg text-xs leading-6 text-[#796b9e] sm:text-sm">
-            Təsdiqlənmiş və tamamlanmış dərs seanslarının cədvəli.
+            {t('sessions.subtitle')}
           </p>
         </div>
 
         {loading ? (
-          <p className="text-center text-sm text-[#8065a8]">Seanslar yüklənir...</p>
+          <p className="text-center text-sm text-[#8065a8]">{t('sessions.loading')}</p>
         ) : (
           <>
             {pageError && (
@@ -200,16 +226,18 @@ function Sessions() {
 
             {/* PLANLAŞDIRILAN */}
             <section>
-              <h2 className="mb-4 text-lg font-bold">Planlaşdırılan seanslar ({upcoming.length})</h2>
+              <h2 className="mb-4 text-lg font-bold">
+                {t('sessions.scheduledTitle')} ({upcoming.length})
+              </h2>
 
               {upcoming.length === 0 ? (
                 <div className="rounded-2xl border border-[#ecd1f6] bg-[#fbf0fd] px-6 py-8 text-center">
                   <p className="text-sm text-[#8065a8]">
-                    Planlaşdırılan seans yoxdur. Yeni seans üçün{' '}
+                    {t('sessions.emptyScheduledPre')}{' '}
                     <Link to="/skills" className="font-semibold text-[#8b20d5] underline">
-                      Bacarıqlar
+                      {t('nav.skills')}
                     </Link>{' '}
-                    səhifəsindən müəllimə sorğu göndər.
+                    {t('sessions.emptyScheduledPost')}
                   </p>
                 </div>
               ) : (
@@ -221,12 +249,14 @@ function Sessions() {
 
             {/* TAMAMLANAN */}
             <section className="mt-10">
-              <h2 className="mb-4 text-lg font-bold">Tamamlanan seanslar ({past.length})</h2>
+              <h2 className="mb-4 text-lg font-bold">
+                {t('sessions.completedTitle')} ({past.length})
+              </h2>
 
               {past.length === 0 ? (
                 <div className="rounded-2xl border border-[#ecd1f6] bg-[#fbf0fd] px-6 py-8 text-center">
                   <p className="text-sm text-[#8065a8]">
-                    Hələ tamamlanan seans yoxdur.
+                    {t('sessions.emptyCompleted')}
                   </p>
                 </div>
               ) : (
@@ -237,11 +267,11 @@ function Sessions() {
             </section>
 
             <p className="mt-10 text-center text-xs text-[#8065a8]">
-              Gələn sorğuları qəbul etmək və seansları tamamlamaq üçün{' '}
+              {t('sessions.footerPre')}{' '}
               <Link to="/requests" className="font-semibold text-[#8b20d5] underline">
-                İstəklər
+                {t('nav.requests')}
               </Link>{' '}
-              səhifəsinə keç.
+              {t('sessions.footerPost')}
             </p>
           </>
         )}

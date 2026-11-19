@@ -1,8 +1,11 @@
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
+import { useTranslation } from 'react-i18next'
+import { authErrorKey } from '../lib/authErrors'
+import { fileToAvatarDataUrl } from '../lib/avatarImage'
 
 type ProfileRow = {
   full_name: string
@@ -39,10 +42,14 @@ type PageStats = {
   completedSessions: number
 }
 
-const LEVEL_LABELS: Record<string, string> = {
-  beginner: 'Başlanğıc',
-  intermediate: 'Orta səviyyə',
-  advanced: 'İnkişaf etmiş',
+const REVIEWS_SQL_FILE = 'src/database/03_reviews.sql'
+
+// Dil kodu → toLocaleString locale kodu
+const DATE_LOCALES: Record<string, string> = {
+  az: 'az-AZ',
+  en: 'en-GB',
+  ru: 'ru-RU',
+  tr: 'tr-TR',
 }
 
 // --- Supabase sorğu helper-ləri (setState yoxdur — komponent xaricində təmiz funksiyalar) ---
@@ -118,18 +125,21 @@ function initialsOf(fullName: string) {
     .join('') || 'U'
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('az-AZ', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
+// Səviyyənin DB dəyərini i18n açarına çevirir (beginner → profile.levelBeginner)
+function levelKey(level: string) {
+  if (level === 'beginner') return 'profile.levelBeginner'
+  if (level === 'intermediate') return 'profile.levelIntermediate'
+  if (level === 'advanced') return 'profile.levelAdvanced'
+  return null
 }
 
 function Profile() {
   const { user, signOut, updatePassword } = useAuth()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const dateLocale = DATE_LOCALES[i18n.resolvedLanguage ?? 'az'] ?? 'az-AZ'
 
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [mySkills, setMySkills] = useState<MySkill[]>([])
@@ -159,6 +169,12 @@ function Profile() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileError, setProfileError] = useState('')
 
+  // Profil şəkli yükləmə (qalereya / kamera)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+
   const [editSkill, setEditSkill] = useState<MySkill | null>(null)
   const [editLevel, setEditLevel] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -178,6 +194,7 @@ function Profile() {
   const [addError, setAddError] = useState('')
 
   const [pwdModal, setPwdModal] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [pwdSaving, setPwdSaving] = useState(false)
@@ -251,9 +268,7 @@ function Profile() {
         if (ignore) return
 
         setPageError(
-          err instanceof Error
-            ? err.message
-            : 'Profil məlumatları yüklənmədi.'
+          err instanceof Error ? err.message : t('profile.loadFailed')
         )
       } finally {
         if (!ignore) setLoading(false)
@@ -265,7 +280,7 @@ function Profile() {
     return () => {
       ignore = true
     }
-  }, [user])
+  }, [user, t])
 
   // Bacarıq katalogu modal açılanda (düymədən VƏ YA ?add=1 linkindən) yüklənsin
   useEffect(() => {
@@ -309,7 +324,35 @@ function Profile() {
     setEditAvatarUrl(profile.avatar_url ?? '')
     setEditUniversity(profile.university ?? '')
     setProfileError('')
+    setAvatarError('')
     setProfileModal(true)
+  }
+
+  // Qalereya / kamera seçilmiş faylı emal edir və data URL yaratdıqdan
+  // sonra redaktə formasına qoyur — save düyməsi basılanda bazaya yazılır
+  async function handleAvatarFile(file: File | undefined | null) {
+    if (!file) return
+
+    setAvatarBusy(true)
+    setAvatarError('')
+
+    const result = await fileToAvatarDataUrl(file)
+
+    if (result.ok) {
+      setEditAvatarUrl(result.dataUrl)
+    } else if (result.reason === 'invalid') {
+      setAvatarError(t('profile.avatar.invalidFile'))
+    } else if (result.reason === 'tooLarge') {
+      setAvatarError(t('profile.avatar.tooLarge'))
+    } else {
+      setAvatarError(t('profile.avatar.processingError'))
+    }
+
+    // Eyni faylı yenidən seçəndə onChange baş işləsin
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+
+    setAvatarBusy(false)
   }
 
   function openEditSkillModal(skill: MySkill) {
@@ -373,7 +416,7 @@ function Profile() {
       setProfileModal(false)
     } catch (err: unknown) {
       setProfileError(
-        err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.'
+        err instanceof Error ? err.message : t('profile.unexpected')
       )
     } finally {
       setProfileSaving(false)
@@ -406,7 +449,7 @@ function Profile() {
       await reloadSkills()
     } catch (err: unknown) {
       setSkillError(
-        err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.'
+        err instanceof Error ? err.message : t('profile.unexpected')
       )
     } finally {
       setSkillSaving(false)
@@ -445,7 +488,7 @@ function Profile() {
       await reloadSkills()
     } catch (err: unknown) {
       setAddError(
-        err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.'
+        err instanceof Error ? err.message : t('profile.unexpected')
       )
     } finally {
       setAddSaving(false)
@@ -455,9 +498,7 @@ function Profile() {
   async function handleDeleteSkill(skillId: number) {
     if (busySkillId !== null) return
 
-    const confirmed = window.confirm(
-      'Bu bacarığı silmək istəyirsən? Bu əməliyyatı geri qaytarmaq olmaz.'
-    )
+    const confirmed = window.confirm(t('profile.confirmDeleteSkill'))
 
     if (!confirmed) return
 
@@ -477,23 +518,30 @@ function Profile() {
       await reloadSkills()
     } catch (err: unknown) {
       setPageError(
-        err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.'
+        err instanceof Error ? err.message : t('profile.unexpected')
       )
     } finally {
       setBusySkillId(null)
     }
   }
 
+  // Şifrə dəyişmə: əvvəlcə köhnə şifrə yenidən girişlə yoxlanılır,
+  // uğurlu olduqdan sonra updateUser yeni şifrəni tətbiq edir
   async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
+    if (!user?.email) {
+      setPwdError(t('errors.generic'))
+      return
+    }
+
     if (newPassword !== confirmNewPassword) {
-      setPwdError('Şifrələr bir-biri ilə uyğun gəlmir.')
+      setPwdError(t('profile.pwdMismatch'))
       return
     }
 
     if (newPassword.length < 6) {
-      setPwdError('Şifrə ən azı 6 simvol olmalıdır.')
+      setPwdError(t('profile.pwdShort'))
       return
     }
 
@@ -502,23 +550,48 @@ function Profile() {
     setPwdSuccess('')
 
     try {
-      const { error } = await updatePassword(newPassword)
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      })
 
-      if (error) {
-        setPwdError(error.message)
+      if (verifyError) {
+        setPwdError(
+          verifyError.code === 'invalid_credentials' ||
+            verifyError.message.toLowerCase().includes('invalid login')
+            ? t('profile.pwdWrongOld')
+            : t(authErrorKey(verifyError))
+        )
         return
       }
 
-      setPwdSuccess('Şifrə uğurla dəyişdirildi!')
+      const { error } = await updatePassword(newPassword)
+
+      if (error) {
+        setPwdError(t(authErrorKey(error)))
+        return
+      }
+
+      setPwdSuccess(t('profile.pwdChanged'))
+      setOldPassword('')
       setNewPassword('')
       setConfirmNewPassword('')
     } catch (err: unknown) {
       setPwdError(
-        err instanceof Error ? err.message : 'Gözlənilməz xəta baş verdi.'
+        err instanceof Error ? err.message : t('profile.unexpected')
       )
     } finally {
       setPwdSaving(false)
     }
+  }
+
+  function openPwdModal() {
+    setOldPassword('')
+    setNewPassword('')
+    setConfirmNewPassword('')
+    setPwdError('')
+    setPwdSuccess('')
+    setPwdModal(true)
   }
 
   async function handleSignOut() {
@@ -548,7 +621,7 @@ function Profile() {
   if (loading) {
     return (
       <div className="rounded-3xl bg-[#faf9fd] px-4 py-20 text-center sm:px-8">
-        <p className="text-sm text-[#89859A]">Profil yüklənir...</p>
+        <p className="text-sm text-[#89859A]">{t('profile.loading')}</p>
       </div>
     )
   }
@@ -562,7 +635,7 @@ function Profile() {
             onClick={() => window.location.reload()}
             className="rounded-xl bg-purple-600 px-5 py-2 text-white transition hover:bg-purple-700"
           >
-            Yenidən cəhd et
+            {t('common.tryAgain')}
           </button>
         </div>
       </div>
@@ -576,13 +649,13 @@ function Profile() {
         {/* 1. SƏHİFƏ BAŞLIĞI */}
         <header>
           <p className="text-sm font-semibold text-purple-500">
-            OF COURSE / PROFİL
+            OF COURSE / {t('nav.profile').toUpperCase()}
           </p>
           <h1 className="mt-2 text-3xl font-bold">
-            Mənim profilim
+            {t('profile.title')}
           </h1>
           <p className="mt-1 text-[#89859A]">
-            Öyrənmə yolculuğunu buradan idarə et.
+            {t('profile.subtitle')}
           </p>
         </header>
 
@@ -599,7 +672,7 @@ function Profile() {
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
-                alt={profile.full_name || 'İstifadəçi'}
+                alt={profile.full_name || t('profile.user')}
                 className="h-24 w-24 shrink-0 rounded-full object-cover"
               />
             ) : (
@@ -610,7 +683,7 @@ function Profile() {
 
             <div className="min-w-0 flex-1 text-center md:text-left">
               <h2 className="text-2xl font-bold">
-                {profile?.full_name || 'İstifadəçi'}
+                {profile?.full_name || t('profile.user')}
               </h2>
 
               {profile?.university && (
@@ -627,9 +700,9 @@ function Profile() {
 
               <p className="mt-2 font-medium text-purple-500">
                 {rating ? (
-                  <>★★★★★ {rating} · {reviews?.length} rəy</>
+                  <>★★★★★ {rating} · {t('profile.reviewsCount', { count: reviews?.length ?? 0 })}</>
                 ) : (
-                  <span className="text-[#89859A]">Hələ rəy yoxdur</span>
+                  <span className="text-[#89859A]">{t('profile.noReviewsYet')}</span>
                 )}
               </p>
             </div>
@@ -639,20 +712,20 @@ function Profile() {
                 onClick={openEditProfileModal}
                 className="rounded-xl bg-purple-100 px-5 py-3 font-semibold text-purple-700 transition hover:bg-purple-200"
               >
-                Profili redaktə et
+                {t('profile.editProfile')}
               </button>
               <div className="flex items-center gap-4 text-xs">
                 <button
-                  onClick={() => setPwdModal(true)}
+                  onClick={openPwdModal}
                   className="text-[#89859A] underline transition hover:text-purple-600"
                 >
-                  Şifrəni dəyiş
+                  {t('profile.changePassword')}
                 </button>
                 <button
                   onClick={handleSignOut}
                   className="text-[#89859A] underline transition hover:text-red-500"
                 >
-                  Çıxış et
+                  {t('profile.signOut')}
                 </button>
               </div>
             </div>
@@ -662,10 +735,10 @@ function Profile() {
         {/* 3. STATİSTİKA */}
         <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
-            ['Öyrətdiyim saatlar', `${stats.teachingHours} saat`],
-            ['Öyrəndiyim saatlar', `${stats.learningHours} saat`],
-            ['Tamamlanan seanslar', `${stats.completedSessions}`],
-            ['Kredit balansı', `${profile?.credit_balance ?? 0} kredit`],
+            [t('profile.statTeachingHours'), `${stats.teachingHours} ${t('common.hours')}`],
+            [t('profile.statLearningHours'), `${stats.learningHours} ${t('common.hours')}`],
+            [t('profile.statSessions'), `${stats.completedSessions}`],
+            [t('profile.statCredits'), `${profile?.credit_balance ?? 0} ${t('common.credits')}`],
           ].map(([label, value]) => (
             <div
               key={label}
@@ -682,13 +755,13 @@ function Profile() {
         {/* 4. BACARIQLARIM */}
         <section className="rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-sm">
           <h2 className="mb-5 text-xl font-bold">
-            Bacarıqlarım
+            {t('profile.mySkills')}
           </h2>
 
           <div className="mb-5 flex flex-wrap gap-3">
             {([
-              ['teach', `Öyrətdiklərim (${teachSkills.length})`],
-              ['learn', `Öyrəndiklərim (${learnSkills.length})`],
+              ['teach', `${t('profile.tabTeach')} (${teachSkills.length})`],
+              ['learn', `${t('profile.tabLearn')} (${learnSkills.length})`],
             ] as [SkillType, string][]).map(([tab, label]) => (
               <button
                 key={tab}
@@ -708,81 +781,89 @@ function Profile() {
             <div className="rounded-xl bg-[#faf9fd] px-6 py-8 text-center">
               <p className="text-sm text-[#89859A]">
                 {activeTab === 'teach'
-                  ? 'Hələ paylaşdığın bacarıq yoxdur. "+ Bacarıq əlavə et" düyməsi ilə bildiyin mövzuları əlavə et — digər istifadəçilər səndən dərs ala bilsin.'
-                  : 'Öyrənmək istədiyin mövzu yoxdur. "+ Bacarıq əlavə et" düyməsi ilə hədəflərini əlavə et — uyğun müəllimləri tapmaq asanlaşsın.'}
+                  ? t('profile.emptyTeach')
+                  : t('profile.emptyLearn')}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {tabSkills.map(item => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-[#faf9fd] p-4"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold">
-                        {item.skills?.name ?? 'Bacarıq'}
-                      </h3>
-                      {item.skills?.category && (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            item.type === 'teach'
-                              ? 'bg-purple-50 text-purple-600'
-                              : 'bg-[#FCE7F3] text-pink-700'
-                          }`}
-                        >
-                          {item.skills.category}
-                        </span>
+              {tabSkills.map(item => {
+                const level = item.level ? levelKey(item.level) : null
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-[#faf9fd] p-4"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">
+                          {item.skills?.name ?? t('profile.skill')}
+                        </h3>
+                        {item.skills?.category && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              item.type === 'teach'
+                                ? 'bg-purple-50 text-purple-600'
+                                : 'bg-[#FCE7F3] text-pink-700'
+                            }`}
+                          >
+                            {item.skills.category}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.level ? (
+                        <p className="mt-0.5 text-xs font-medium text-purple-500">
+                          {level
+                            ? t('profile.levelOf', {
+                                level: t(level),
+                              })
+                            : t('profile.levelOf', { level: item.level })}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-[#89859A]">
+                          {t('profile.levelNotSet')}
+                        </p>
+                      )}
+
+                      {item.description && (
+                        <p className="mt-1 text-sm text-[#89859A]">
+                          {item.description}
+                        </p>
                       )}
                     </div>
 
-                    {item.level ? (
-                      <p className="mt-0.5 text-xs font-medium text-purple-500">
-                        Səviyyə: {LEVEL_LABELS[item.level] ?? item.level}
-                      </p>
-                    ) : (
-                      <p className="mt-0.5 text-xs text-[#89859A]">
-                        Səviyyə təyin edilməyib
-                      </p>
-                    )}
-
-                    {item.description && (
-                      <p className="mt-1 text-sm text-[#89859A]">
-                        {item.description}
-                      </p>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={() => openEditSkillModal(item)}
+                        disabled={busySkillId !== null}
+                        aria-label={t('profile.edit')}
+                        title={t('profile.edit')}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-500 transition hover:bg-purple-50 disabled:opacity-50"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 20h9" strokeLinecap="round" />
+                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSkill(item.id)}
+                        disabled={busySkillId !== null}
+                        aria-label={t('profile.delete')}
+                        title={t('profile.delete')}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18" strokeLinecap="round" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeLinecap="round" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => openEditSkillModal(item)}
-                      disabled={busySkillId !== null}
-                      aria-label="Redaktə et"
-                      title="Redaktə et"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-500 transition hover:bg-purple-50 disabled:opacity-50"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 20h9" strokeLinecap="round" />
-                        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSkill(item.id)}
-                      disabled={busySkillId !== null}
-                      aria-label="Sil"
-                      title="Sil"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-red-500 transition hover:bg-red-50 disabled:opacity-50"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 6h18" strokeLinecap="round" />
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeLinecap="round" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -790,28 +871,21 @@ function Profile() {
             onClick={() => openAddModal(activeTab)}
             className="mt-5 font-semibold text-purple-600 transition hover:text-purple-700"
           >
-            + Bacarıq əlavə et
+            {t('profile.addSkill')}
           </button>
         </section>
 
         {/* 5. SON RƏYLƏR */}
         <section className="rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-bold">Son rəylər</h2>
+          <h2 className="mb-5 text-xl font-bold">{t('profile.reviewsTitle')}</h2>
 
           {!reviewsAvailable ? (
             <div className="rounded-xl bg-[#faf9fd] p-4 text-center text-sm text-[#89859A]">
-              Rəylər bölməsi üçün bazada "reviews" cədvəli hələ yaradılmayıb.
-              Repodakı{' '}
-              <code className="rounded bg-[#F1ECFF] px-1 text-purple-700">
-                src/database/03_reviews.sql
-              </code>{' '}
-              faylını Supabase SQL redaktorunda işlətsən, tamamlanan
-              seanslardan sonra şagirdlərin rəyləri burada görünəcək.
+              {t('profile.reviewsMissing', { file: REVIEWS_SQL_FILE })}
             </div>
           ) : !reviews || reviews.length === 0 ? (
             <div className="rounded-xl bg-[#faf9fd] p-4 text-center text-sm text-[#89859A]">
-              Hələ rəy yoxdur. Tamamlanan seanslardan sonra şagirdlər burada
-              rəy yaza bilər.
+              {t('profile.reviewsEmpty')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -821,19 +895,19 @@ function Profile() {
                     {review.reviewer?.avatar_url ? (
                       <img
                         src={review.reviewer.avatar_url}
-                        alt={review.reviewer.full_name || 'İstifadəçi'}
+                        alt={review.reviewer.full_name || t('profile.user')}
                         className="h-9 w-9 shrink-0 rounded-full object-cover"
                       />
                     ) : (
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-200 to-pink-200 text-xs font-bold text-purple-700">
-                        {initialsOf(review.reviewer?.full_name || 'İ')}
+                        {initialsOf(review.reviewer?.full_name || 'U')}
                       </div>
                     )}
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-semibold">
-                          {review.reviewer?.full_name || 'İstifadəçi'}
+                          {review.reviewer?.full_name || t('profile.user')}
                         </span>
                         <span className="text-sm text-yellow-500">
                           {'★'.repeat(review.rating)}
@@ -843,7 +917,14 @@ function Profile() {
                         </span>
                       </div>
                       <span className="text-[10px] text-[#89859A]">
-                        {formatDate(review.created_at)}
+                        {new Date(review.created_at).toLocaleDateString(
+                          dateLocale,
+                          {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric',
+                          }
+                        )}
                       </span>
                     </div>
                   </div>
@@ -856,7 +937,7 @@ function Profile() {
 
                   {review.skill?.name && (
                     <span className="mt-2 inline-block rounded-full bg-[#FCE7F3] px-2.5 py-1 text-[10px] font-semibold text-pink-700">
-                      Seans: {review.skill.name}
+                      {t('profile.sessionTag', { name: review.skill.name })}
                     </span>
                   )}
                 </div>
@@ -865,404 +946,515 @@ function Profile() {
           )}
         </section>
 
-      </div>
-
-      {/* EDIT PROFILE MODAL */}
-      {profileModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
-          onClick={() => !profileSaving && setProfileModal(false)}
-        >
+        {/* EDIT PROFILE MODAL */}
+        {profileModal && (
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-profile-title"
-            onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
+            onClick={() => !profileSaving && !avatarBusy && setProfileModal(false)}
           >
-            <h2
-              id="edit-profile-title"
-              className="text-xl font-bold text-[#29243A]"
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-profile-title"
+              onClick={e => e.stopPropagation()}
+              className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
             >
-              Profili redaktə et
-            </h2>
+              <h2
+                id="edit-profile-title"
+                className="text-xl font-bold text-[#29243A]"
+              >
+                {t('profile.editProfile')}
+              </h2>
 
-            <form onSubmit={handleSaveProfile} className="mt-4 space-y-4">
-              <div>
-                <label htmlFor="pf-name" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Ad və soyad
-                </label>
-                <input
-                  id="pf-name"
-                  type="text"
-                  value={editFullName}
-                  onChange={e => setEditFullName(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
+              <form onSubmit={handleSaveProfile} className="mt-4 space-y-4">
+                {/* PROFİL ŞƏKLİ: qalereya / kamera seçimi */}
+                <div>
+                  <p className="mb-2 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.avatar.sectionTitle')}
+                  </p>
 
-              <div>
-                <label htmlFor="pf-bio" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Haqqımda
-                </label>
-                <textarea
-                  id="pf-bio"
-                  value={editBio}
-                  onChange={e => setEditBio(e.target.value)}
-                  rows={3}
-                  maxLength={400}
-                  placeholder="Nə öyrədirsən, nə təcrübən var?"
-                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
+                  <div className="flex items-center gap-4">
+                    {editAvatarUrl ? (
+                      <img
+                        src={editAvatarUrl}
+                        alt={editFullName || t('profile.user')}
+                        className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-purple-100"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-200 to-pink-200 text-lg font-bold text-purple-700">
+                        {initialsOf(editFullName || 'U')}
+                      </div>
+                    )}
 
-              <div>
-                <label htmlFor="pf-avatar" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Profil şəkli linki (istəyə bağlı)
-                </label>
-                <input
-                  id="pf-avatar"
-                  type="url"
-                  value={editAvatarUrl}
-                  onChange={e => setEditAvatarUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          disabled={avatarBusy}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-purple-100 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="5" width="18" height="14" rx="2" />
+                            <circle cx="9" cy="11" r="2" />
+                            <path d="M21 17l-5-5-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {t('profile.avatar.gallery')}
+                        </button>
 
-              <div>
-                <label htmlFor="pf-uni" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Universitet / iş yeri (istəyə bağlı)
-                </label>
-                <input
-                  id="pf-uni"
-                  type="text"
-                  value={editUniversity}
-                  onChange={e => setEditUniversity(e.target.value)}
-                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          disabled={avatarBusy}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-pink-50 px-3 py-2 text-xs font-semibold text-pink-700 transition hover:bg-pink-100 disabled:opacity-60"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
+                            <circle cx="12" cy="14" r="4" />
+                          </svg>
+                          {t('profile.avatar.camera')}
+                        </button>
 
-              {profileError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
-                  {profileError}
+                        {editAvatarUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditAvatarUrl('')}
+                            disabled={avatarBusy}
+                            className="inline-flex items-center rounded-xl border border-purple-100 px-3 py-2 text-xs font-semibold text-[#89859A] transition hover:bg-purple-50 disabled:opacity-60"
+                          >
+                            {t('profile.avatar.remove')}
+                          </button>
+                        )}
+                      </div>
+
+                      {avatarBusy && (
+                        <p className="text-xs text-purple-500">
+                          {t('profile.avatar.processing')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mobil cihazlarda "accept" qalereyani, "capture" kamerayı açır */}
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => void handleAvatarFile(e.target.files?.[0])}
+                  />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={e => void handleAvatarFile(e.target.files?.[0])}
+                  />
+
+                  {avatarError && (
+                    <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                      {avatarError}
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setProfileModal(false)}
-                  disabled={profileSaving}
-                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
-                >
-                  Ləğv et
-                </button>
-                <button
-                  type="submit"
-                  disabled={profileSaving}
-                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
-                >
-                  {profileSaving ? 'Yadda saxlanır...' : 'Yadda saxla'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                {/* Xarici link yalnız data URL deyilsə göstərilir (qalereya/kamera seçiləndə boşluq bulanmasın) */}
+                {!editAvatarUrl.startsWith('data:') && (
+                  <div>
+                    <label htmlFor="pf-avatar" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                      {t('profile.avatarUrlLabel')}
+                    </label>
+                    <input
+                      id="pf-avatar"
+                      type="url"
+                      value={editAvatarUrl}
+                      onChange={e => setEditAvatarUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                    />
+                  </div>
+                )}
 
-      {/* EDIT SKILL MODAL */}
-      {editSkill && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
-          onClick={() => !skillSaving && closeAllSkillModals()}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-skill-title"
-            onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
-          >
-            <h2
-              id="edit-skill-title"
-              className="text-xl font-bold text-[#29243A]"
-            >
-              Bacarığı redaktə et: {editSkill.skills?.name}
-            </h2>
-
-            <form onSubmit={handleSaveSkill} className="mt-4 space-y-4">
-              <div>
-                <label htmlFor="es-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Səviyyə
-                </label>
-                <select
-                  id="es-level"
-                  value={editLevel}
-                  onChange={e => setEditLevel(e.target.value)}
-                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                >
-                  <option value="beginner">Başlanğıc</option>
-                  <option value="intermediate">Orta səviyyə</option>
-                  <option value="advanced">İnkişaf etmiş</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="es-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Təsvir
-                </label>
-                <textarea
-                  id="es-desc"
-                  value={editDescription}
-                  onChange={e => setEditDescription(e.target.value)}
-                  rows={3}
-                  maxLength={300}
-                  placeholder={
-                    editSkill.type === 'teach'
-                      ? 'Nələri öyrədirsən? Müddət və format haqqında qeyd...'
-                      : 'Nə öyrənmək istəyirsən? Hədəfin haqqında qeyd...'
-                  }
-                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-                <p className="mt-1 text-right text-[10px] text-[#89859A]">
-                  Məsələn: Müddət: 1-2 saat · Onlayn
-                </p>
-              </div>
-
-              {skillError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
-                  {skillError}
+                <div>
+                  <label htmlFor="pf-name" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.fullNameLabel')}
+                  </label>
+                  <input
+                    id="pf-name"
+                    type="text"
+                    value={editFullName}
+                    onChange={e => setEditFullName(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
                 </div>
-              )}
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={closeAllSkillModals}
-                  disabled={skillSaving}
-                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
-                >
-                  Ləğv et
-                </button>
-                <button
-                  type="submit"
-                  disabled={skillSaving}
-                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
-                >
-                  {skillSaving ? 'Yadda saxlanır...' : 'Yadda saxla'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ADD SKILL MODAL */}
-      {addModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
-          onClick={() => !addSaving && closeAllSkillModals()}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-skill-title"
-            onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
-          >
-            <h2
-              id="add-skill-title"
-              className="text-xl font-bold text-[#29243A]"
-            >
-              + Bacarıq əlavə et
-            </h2>
-
-            <p className="mt-1 text-xs text-[#89859A]">
-              Mövzunu seç — öyrətdiyin və ya öyrənmək istədiyin bacarığı əlavə et.
-            </p>
-
-            <form onSubmit={handleAddSkill} className="mt-4 space-y-4">
-              <div>
-                <label htmlFor="as-type" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Növ
-                </label>
-                <select
-                  id="as-type"
-                  value={addType}
-                  onChange={e => setAddType(e.target.value as SkillType)}
-                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                >
-                  <option value="teach">Öyrədirəm — digərlərinə dərs verirəm</option>
-                  <option value="learn">Öyrənirəm — öyrənmək istəyirəm</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="as-skill" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Bacarıq
-                </label>
-                <select
-                  id="as-skill"
-                  value={addSkillId}
-                  onChange={e => setAddSkillId(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                >
-                  <option value="">Bacarıq seç</option>
-                  {catalog.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({item.category})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="as-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Səviyyən
-                </label>
-                <select
-                  id="as-level"
-                  value={addLevel}
-                  onChange={e => setAddLevel(e.target.value)}
-                  className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                >
-                  <option value="beginner">Başlanğıc</option>
-                  <option value="intermediate">Orta səviyyə</option>
-                  <option value="advanced">İnkişaf etmiş</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="as-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Təsvir (istəyə bağlı)
-                </label>
-                <textarea
-                  id="as-desc"
-                  value={addDescription}
-                  onChange={e => setAddDescription(e.target.value)}
-                  rows={3}
-                  maxLength={300}
-                  placeholder="Məsələn: Müddət: 1-2 saat · Onlayn"
-                  className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
-
-              {addError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
-                  {addError}
+                <div>
+                  <label htmlFor="pf-uni" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.universityLabel')}
+                  </label>
+                  <input
+                    id="pf-uni"
+                    type="text"
+                    value={editUniversity}
+                    onChange={e => setEditUniversity(e.target.value)}
+                    className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
                 </div>
-              )}
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={closeAllSkillModals}
-                  disabled={addSaving}
-                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
-                >
-                  Ləğv et
-                </button>
-                <button
-                  type="submit"
-                  disabled={addSaving || !addSkillId}
-                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
-                >
-                  {addSaving ? 'Əlavə olunur...' : 'Əlavə et'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* CHANGE PASSWORD MODAL */}
-      {pwdModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
-          onClick={() => !pwdSaving && setPwdModal(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pwd-title"
-            onClick={e => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
-          >
-            <h2
-              id="pwd-title"
-              className="text-xl font-bold text-[#29243A]"
-            >
-              Şifrəni dəyiş
-            </h2>
-
-            <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
-              <div>
-                <label htmlFor="pwd-new" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Yeni şifrə
-                </label>
-                <input
-                  id="pwd-new"
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  minLength={6}
-                  required
-                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="pwd-confirm" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                  Yeni şifrə (təkrar)
-                </label>
-                <input
-                  id="pwd-confirm"
-                  type="password"
-                  value={confirmNewPassword}
-                  onChange={e => setConfirmNewPassword(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                />
-              </div>
-
-              {pwdError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
-                  {pwdError}
+                <div>
+                  <label htmlFor="pf-bio" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.aboutLabel')}
+                  </label>
+                  <textarea
+                    id="pf-bio"
+                    value={editBio}
+                    onChange={e => setEditBio(e.target.value)}
+                    rows={3}
+                    maxLength={400}
+                    placeholder={t('profile.aboutPlaceholder')}
+                    className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
                 </div>
-              )}
 
-              {pwdSuccess && (
-                <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs text-green-700">
-                  {pwdSuccess}
-                </div>
-              )}
+                {profileError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+                    {profileError}
+                  </div>
+                )}
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setPwdModal(false)}
-                  disabled={pwdSaving}
-                  className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
-                >
-                  {pwdSuccess ? 'Bağla' : 'Ləğv et'}
-                </button>
-                {!pwdSuccess && (
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setProfileModal(false)}
+                    disabled={profileSaving || avatarBusy}
+                    className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
+                  >
+                    {t('profile.cancel')}
+                  </button>
                   <button
                     type="submit"
-                    disabled={pwdSaving}
+                    disabled={profileSaving || avatarBusy}
                     className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
                   >
-                    {pwdSaving ? 'Dəyişdirilir...' : 'Dəyişdir'}
+                    {profileSaving ? t('profile.saving') : t('profile.save')}
                   </button>
-                )}
-              </div>
-            </form>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* EDIT SKILL MODAL */}
+        {editSkill && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
+            onClick={() => !skillSaving && closeAllSkillModals()}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-skill-title"
+              onClick={e => e.stopPropagation()}
+              className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
+            >
+              <h2
+                id="edit-skill-title"
+                className="text-xl font-bold text-[#29243A]"
+              >
+                {t('profile.editSkillTitle', { name: editSkill.skills?.name ?? '' })}
+              </h2>
+
+              <form onSubmit={handleSaveSkill} className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="es-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.levelLabel')}
+                  </label>
+                  <select
+                    id="es-level"
+                    value={editLevel}
+                    onChange={e => setEditLevel(e.target.value)}
+                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  >
+                    <option value="beginner">{t('profile.levelBeginner')}</option>
+                    <option value="intermediate">{t('profile.levelIntermediate')}</option>
+                    <option value="advanced">{t('profile.levelAdvanced')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="es-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.descriptionLabel')}
+                  </label>
+                  <textarea
+                    id="es-desc"
+                    value={editDescription}
+                    onChange={e => setEditDescription(e.target.value)}
+                    rows={3}
+                    maxLength={300}
+                    placeholder={
+                      editSkill.type === 'teach'
+                        ? t('profile.descPlaceholderTeach')
+                        : t('profile.descPlaceholderLearn')
+                    }
+                    className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
+                  <p className="mt-1 text-right text-[10px] text-[#89859A]">
+                    {t('profile.descHint')}
+                  </p>
+                </div>
+
+                {skillError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+                    {skillError}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={closeAllSkillModals}
+                    disabled={skillSaving}
+                    className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
+                  >
+                    {t('profile.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={skillSaving}
+                    className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
+                  >
+                    {skillSaving ? t('profile.saving') : t('profile.save')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ADD SKILL MODAL */}
+        {addModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
+            onClick={() => !addSaving && closeAllSkillModals()}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-skill-title"
+              onClick={e => e.stopPropagation()}
+              className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
+            >
+              <h2
+                id="add-skill-title"
+                className="text-xl font-bold text-[#29243A]"
+              >
+                {t('profile.addSkillTitle')}
+              </h2>
+
+              <p className="mt-1 text-xs text-[#89859A]">
+                {t('profile.addSkillSubtitle')}
+              </p>
+
+              <form onSubmit={handleAddSkill} className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="as-type" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.typeLabel')}
+                  </label>
+                  <select
+                    id="as-type"
+                    value={addType}
+                    onChange={e => setAddType(e.target.value as SkillType)}
+                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  >
+                    <option value="teach">{t('profile.typeTeach')}</option>
+                    <option value="learn">{t('profile.typeLearn')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="as-skill" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.skill')}
+                  </label>
+                  <select
+                    id="as-skill"
+                    value={addSkillId}
+                    onChange={e => setAddSkillId(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  >
+                    <option value="">{t('profile.chooseSkill')}</option>
+                    {catalog.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="as-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.yourLevel')}
+                  </label>
+                  <select
+                    id="as-level"
+                    value={addLevel}
+                    onChange={e => setAddLevel(e.target.value)}
+                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  >
+                    <option value="beginner">{t('profile.levelBeginner')}</option>
+                    <option value="intermediate">{t('profile.levelIntermediate')}</option>
+                    <option value="advanced">{t('profile.levelAdvanced')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="as-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.descriptionOptional')}
+                  </label>
+                  <textarea
+                    id="as-desc"
+                    value={addDescription}
+                    onChange={e => setAddDescription(e.target.value)}
+                    rows={3}
+                    maxLength={300}
+                    placeholder={t('profile.descHint')}
+                    className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                {addError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+                    {addError}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={closeAllSkillModals}
+                    disabled={addSaving}
+                    className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
+                  >
+                    {t('profile.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={addSaving || !addSkillId}
+                    className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
+                  >
+                    {addSaving ? t('profile.adding') : t('profile.add')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* CHANGE PASSWORD MODAL — köhnə şifrə yoxlaması ilə */}
+        {pwdModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
+            onClick={() => !pwdSaving && setPwdModal(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pwd-title"
+              onClick={e => e.stopPropagation()}
+              className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
+            >
+              <h2
+                id="pwd-title"
+                className="text-xl font-bold text-[#29243A]"
+              >
+                {t('profile.pwdTitle')}
+              </h2>
+
+              <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="pwd-old" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.pwdOldLabel')}
+                  </label>
+                  <input
+                    id="pwd-old"
+                    type="password"
+                    value={oldPassword}
+                    onChange={e => setOldPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="pwd-new" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.pwdNewLabel')}
+                  </label>
+                  <input
+                    id="pwd-new"
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    minLength={6}
+                    required
+                    autoComplete="new-password"
+                    className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="pwd-confirm" className="mb-1 block text-xs font-semibold text-[#29243A]">
+                    {t('profile.pwdConfirmLabel')}
+                  </label>
+                  <input
+                    id="pwd-confirm"
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={e => setConfirmNewPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    className="w-full rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                {pwdError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+                    {pwdError}
+                  </div>
+                )}
+
+                {pwdSuccess && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs text-green-700">
+                    {pwdSuccess}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPwdModal(false)}
+                    disabled={pwdSaving}
+                    className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
+                  >
+                    {pwdSuccess ? t('profile.close') : t('profile.cancel')}
+                  </button>
+                  {!pwdSuccess && (
+                    <button
+                      type="submit"
+                      disabled={pwdSaving}
+                      className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
+                    >
+                      {pwdSaving ? t('profile.pwdChanging') : t('profile.pwdChange')}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

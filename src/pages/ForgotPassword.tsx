@@ -1,7 +1,12 @@
-import { useState } from 'react'
+
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
+import { authErrorKey } from '../lib/authErrors'
+
+// Göndərmələr arasındaki müdafiə ilə gözləmə (san)
+const RESEND_COOLDOWN = 60
 
 function ForgotPassword() {
   const { resetPassword } = useAuth()
@@ -10,20 +15,47 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+
+  // Geri sayım — düymənin yenidən basılmasının qarşısını alır
+  useEffect(() => {
+    if (cooldown <= 0) return
+
+    const timer = window.setInterval(() => {
+      setCooldown(seconds => (seconds > 0 ? seconds - 1 : 0))
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [cooldown])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (cooldown > 0) return
+
     setLoading(true)
     setError('')
     setMessage('')
 
     try {
       const result = await resetPassword(email)
-      if (result.error) setError(t('forgot.error'))
-      else setMessage(t('forgot.success'))
+
+      if (result.error) {
+        // "Email rate limit exceeded" və s. — hər xəta seçilmiş dilə çevrilir
+        const errorKey = authErrorKey(result.error)
+        setError(t(errorKey))
+
+        // Limit xətası — dərhal təkrar cəhd yenə uğursuz olacaq, gözləmə başlat
+        if (errorKey === 'errors.rateLimit') {
+          setCooldown(RESEND_COOLDOWN)
+        }
+      } else {
+        setMessage(t('forgot.success'))
+        setCooldown(RESEND_COOLDOWN)
+      }
     } catch (err) {
       console.error('Password reset error:', err)
-      setError(t('forgot.error'))
+      setError(t('errors.network'))
     } finally {
       setLoading(false)
     }
@@ -38,7 +70,13 @@ function ForgotPassword() {
           <p className="text-lg text-[#281078] mb-9">{t('forgot.subtitle')}</p>
           <form onSubmit={handleSubmit} className="space-y-7">
             <div><label className="block text-sm mb-2">{t('common.email')}</label><input type="email" placeholder={t('common.emailPlaceholder')} value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full h-[58px] px-5 rounded-xl border-2 border-[#edc4fa] focus:outline-none focus:border-[#9225d8]" /></div>
-            <button type="submit" disabled={loading} className="w-full h-[58px] rounded-xl bg-[#8520d0] text-white font-semibold hover:bg-[#6f18b5] transition disabled:opacity-60">{loading ? t('forgot.loading') : t('forgot.submit')}</button>
+            <button type="submit" disabled={loading || cooldown > 0} className="w-full h-[58px] rounded-xl bg-[#8520d0] text-white font-semibold hover:bg-[#6f18b5] transition disabled:opacity-60">
+              {loading
+                ? t('forgot.loading')
+                : cooldown > 0
+                  ? t('errors.cooldown', { seconds: cooldown })
+                  : t('forgot.submit')}
+            </button>
           </form>
           {error && <p role="alert" className="text-red-600 mt-4 text-sm">{error}</p>}
           {message && (

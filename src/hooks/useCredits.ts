@@ -61,9 +61,7 @@ export function useCredits() {
         if (ignore) return
 
         setError(
-          err instanceof Error
-            ? err.message
-            : 'Kredit məlumatları yüklənmədi.'
+          err instanceof Error ? err.message : null
         )
       } finally {
         if (!ignore) setLoaded(true)
@@ -94,9 +92,7 @@ export function useCredits() {
       setError(null)
     } catch (err: unknown) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Kredit məlumatları yüklənmədi.'
+        err instanceof Error ? err.message : null
       )
     } finally {
       setLoaded(true)

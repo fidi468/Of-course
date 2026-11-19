@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
+import { useTranslation } from 'react-i18next'
 
 type RequestStatus =
   | 'pending'
@@ -71,12 +72,13 @@ async function fetchLessonRequests(userId: string) {
     .order('created_at', { ascending: false })
 }
 
-const statusLabels: Record<RequestStatus, string> = {
-  pending: 'Gözləyir',
-  accepted: 'Qəbul edilib',
-  rejected: 'Rədd edilib',
-  completed: 'Tamamlanıb',
-  cancelled: 'Ləğv edilib',
+// Status → i18n açarı
+const statusLabelKeys: Record<RequestStatus, string> = {
+  pending: 'requests.statusPending',
+  accepted: 'requests.statusAccepted',
+  rejected: 'requests.statusRejected',
+  completed: 'requests.statusCompleted',
+  cancelled: 'requests.statusCancelled',
 }
 
 const statusStyles: Record<RequestStatus, string> = {
@@ -87,8 +89,19 @@ const statusStyles: Record<RequestStatus, string> = {
   cancelled: 'bg-gray-100 text-gray-600 border-gray-200',
 }
 
+// Dil kodu → toLocaleString locale kodu
+const DATE_LOCALES: Record<string, string> = {
+  az: 'az-AZ',
+  en: 'en-GB',
+  ru: 'ru-RU',
+  tr: 'tr-TR',
+}
+
 function Requests() {
   const { user } = useAuth()
+  const { t, i18n } = useTranslation()
+
+  const dateLocale = DATE_LOCALES[i18n.resolvedLanguage ?? 'az'] ?? 'az-AZ'
 
   const [requests, setRequests] = useState<LessonRequest[]>([])
   const [activeTab, setActiveTab] = useState<'incoming' | 'outgoing'>(
@@ -174,7 +187,7 @@ function Requests() {
         setActionError(error.message)
       } else {
         setSuccessMessage(
-          accept ? 'Sorğu qəbul edildi!' : 'Sorğu rədd edildi.'
+          accept ? t('requests.acceptedMsg') : t('requests.rejectedMsg')
         )
         await loadRequests()
       }
@@ -182,7 +195,7 @@ function Requests() {
       setActionError(
         err instanceof Error
           ? err.message
-          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
+          : t('requests.unexpected')
       )
     } finally {
       setProcessingId(null)
@@ -192,9 +205,7 @@ function Requests() {
   async function handleCancel(requestId: number) {
     if (processingId !== null) return
 
-    const confirmed = window.confirm(
-      'Bu dərs sorğusunu ləğv etmək istəyirsən?'
-    )
+    const confirmed = window.confirm(t('requests.confirmCancel'))
 
     if (!confirmed) return
 
@@ -210,14 +221,14 @@ function Requests() {
       if (error) {
         setActionError(error.message)
       } else {
-        setSuccessMessage('Sorğu ləğv edildi.')
+        setSuccessMessage(t('requests.cancelledMsg'))
         await loadRequests()
       }
     } catch (err: unknown) {
       setActionError(
         err instanceof Error
           ? err.message
-          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
+          : t('requests.unexpected')
       )
     } finally {
       setProcessingId(null)
@@ -227,9 +238,7 @@ function Requests() {
   async function handleComplete(requestId: number) {
     if (processingId !== null) return
 
-    const confirmed = window.confirm(
-      'Bu dərsin tamamlandığını təsdiqləyirsən? Kreditlər tərəflərin balansına köçürüləcək.'
-    )
+    const confirmed = window.confirm(t('requests.confirmComplete'))
 
     if (!confirmed) return
 
@@ -245,14 +254,14 @@ function Requests() {
       if (error) {
         setActionError(error.message)
       } else {
-        setSuccessMessage('Dərs tamamlandı və kreditlər köçürüldü!')
+        setSuccessMessage(t('requests.completedMsg'))
         await loadRequests()
       }
     } catch (err: unknown) {
       setActionError(
         err instanceof Error
           ? err.message
-          : 'Gözlənilməz xəta baş verdi. Yenidən cəhd et.'
+          : t('requests.unexpected')
       )
     } finally {
       setProcessingId(null)
@@ -260,9 +269,9 @@ function Requests() {
   }
 
   function formatDate(value: string | null) {
-    if (!value) return 'Tarix təyin edilməyib'
+    if (!value) return t('requests.dateNotSet')
 
-    return new Date(value).toLocaleString('az-AZ', {
+    return new Date(value).toLocaleString(dateLocale, {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
@@ -284,37 +293,36 @@ function Requests() {
         {/* Header */}
         <div className="text-center">
           <span className="inline-block rounded-full bg-[#f4e1fb] px-4 py-1.5 text-[10px] font-semibold text-[#8b20d5]">
-            Of Course · Dərs idarəetməsi
+            {t('requests.eyebrow')}
           </span>
 
           <h1 className="mt-4 text-3xl font-bold sm:text-4xl">
-            Sorğularım
+            {t('requests.title')}
           </h1>
 
           <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-[#8065a8] sm:text-sm">
-            Dərs müraciətlərini idarə et, yeni biliklər paylaş və
-            öyrənmə səyahətini davam etdir.
+            {t('requests.subtitle')}
           </p>
         </div>
 
         {/* Statistics */}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-[#ead0f6] bg-[#faf4fd] p-4">
-            <p className="text-[10px] text-[#8065a8]">Gələn sorğular</p>
+            <p className="text-[10px] text-[#8065a8]">{t('requests.statIncoming')}</p>
             <p className="mt-2 text-2xl font-bold text-[#861bd2]">
               {incomingRequests.length}
             </p>
           </div>
 
           <div className="rounded-2xl border border-[#ead0f6] bg-[#faf4fd] p-4">
-            <p className="text-[10px] text-[#8065a8]">Göndərilən sorğular</p>
+            <p className="text-[10px] text-[#8065a8]">{t('requests.statOutgoing')}</p>
             <p className="mt-2 text-2xl font-bold text-[#861bd2]">
               {outgoingRequests.length}
             </p>
           </div>
 
           <div className="col-span-2 rounded-2xl border border-[#ead0f6] bg-[#faf4fd] p-4 sm:col-span-1">
-            <p className="text-[10px] text-[#8065a8]">Gözləyən sorğular</p>
+            <p className="text-[10px] text-[#8065a8]">{t('requests.statPending')}</p>
             <p className="mt-2 text-2xl font-bold text-[#861bd2]">
               {requests.filter(r => r.status === 'pending').length}
             </p>
@@ -335,7 +343,7 @@ function Requests() {
                 : 'text-[#8065a8] hover:text-[#861bd2]'
             }`}
           >
-            Gələn sorğular ({incomingRequests.length})
+            {t('requests.tabIncoming')} ({incomingRequests.length})
           </button>
 
           <button
@@ -350,7 +358,7 @@ function Requests() {
                 : 'text-[#8065a8] hover:text-[#861bd2]'
             }`}
           >
-            Göndərdiklərim ({outgoingRequests.length})
+            {t('requests.tabOutgoing')} ({outgoingRequests.length})
           </button>
         </div>
 
@@ -371,24 +379,24 @@ function Requests() {
         <section className="mt-6">
           {loading ? (
             <div className="py-16 text-center text-sm text-[#8065a8]">
-              Sorğular yüklənir...
+              {t('requests.loading')}
             </div>
           ) : pageError ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-center text-xs text-red-600">
-              Sorğuları yükləmək mümkün olmadı: {pageError}
+              {t('requests.loadFailed', { message: pageError })}
             </div>
           ) : visibleRequests.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#e6c8f2] bg-[#fcf8fe] px-5 py-16 text-center">
               <div className="text-3xl">✉</div>
 
               <h2 className="mt-4 text-base font-bold">
-                Hələ sorğu yoxdur
+                {t('requests.emptyTitle')}
               </h2>
 
               <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-[#8065a8]">
                 {activeTab === 'incoming'
-                  ? 'Sənə yeni dərs müraciəti göndərildikdə burada görünəcək.'
-                  : 'Göndərdiyin dərs müraciətləri burada görünəcək.'}
+                  ? t('requests.emptyIncoming')
+                  : t('requests.emptyOutgoing')}
               </p>
             </div>
           ) : (
@@ -407,11 +415,11 @@ function Requests() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <span className="rounded-full bg-[#f4e1fb] px-3 py-1 text-[9px] font-semibold text-[#8b20d5]">
-                          {request.skill?.category ?? 'Bacarıq'}
+                          {request.skill?.category ?? t('requests.skill')}
                         </span>
 
                         <h2 className="mt-3 text-lg font-bold">
-                          {request.skill?.name ?? 'Dərs'}
+                          {request.skill?.name ?? t('requests.lesson')}
                         </h2>
                       </div>
 
@@ -420,7 +428,7 @@ function Requests() {
                           statusStyles[request.status]
                         }`}
                       >
-                        {statusLabels[request.status]}
+                        {t(statusLabelKeys[request.status])}
                       </span>
                     </div>
 
@@ -442,13 +450,13 @@ function Requests() {
 
                       <div>
                         <p className="text-xs font-semibold">
-                          {person?.full_name || 'İstifadəçi'}
+                          {person?.full_name || t('requests.user')}
                         </p>
 
                         <p className="mt-1 text-[10px] text-[#8065a8]">
                           {activeTab === 'incoming'
-                            ? 'Səndən dərs almaq istəyir'
-                            : 'Dərs almaq istədiyin müəllim'}
+                            ? t('requests.wantsToLearn')
+                            : t('requests.yourTeacher')}
                         </p>
                       </div>
                     </div>
@@ -457,25 +465,25 @@ function Requests() {
                     <div className="mt-5 grid grid-cols-1 gap-3 rounded-xl bg-[#faf4fd] p-4 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] text-[#8065a8]">
-                          Seans müddəti
+                          {t('requests.durationLabel')}
                         </p>
                         <p className="mt-1 text-xs font-semibold">
-                          {request.duration_hours} saat
+                          {t('requests.hoursCount', { count: request.duration_hours })}
                         </p>
                       </div>
 
                       <div>
                         <p className="text-[10px] text-[#8065a8]">
-                          Kredit
+                          {t('requests.creditLabel')}
                         </p>
                         <p className="mt-1 text-xs font-semibold">
-                          {request.duration_hours} kredit
+                          {t('requests.creditsCount', { count: request.duration_hours })}
                         </p>
                       </div>
 
                       <div className="sm:col-span-2">
                         <p className="text-[10px] text-[#8065a8]">
-                          Seans vaxtı
+                          {t('requests.whenLabel')}
                         </p>
                         <p className="mt-1 text-xs font-semibold">
                           {formatDate(request.scheduled_at)}
@@ -487,7 +495,7 @@ function Requests() {
                     {request.message && (
                       <div className="mt-4 rounded-xl border border-[#f0e2f7] p-4">
                         <p className="text-[10px] font-semibold text-[#8065a8]">
-                          Mesaj
+                          {t('requests.messageLabel')}
                         </p>
                         <p className="mt-2 text-xs leading-5 text-[#604c85]">
                           {request.message}
@@ -496,7 +504,7 @@ function Requests() {
                     )}
 
                     <div className="mt-4 text-[10px] text-[#a18bb8]">
-                      Göndərilmə tarixi: {formatDate(request.created_at)}
+                      {t('requests.sentAt', { date: formatDate(request.created_at) })}
                     </div>
 
                     {/* Actions */}
@@ -508,7 +516,7 @@ function Requests() {
                             onClick={() => handleRespond(request.id, true)}
                             className="flex-1 rounded-xl bg-[#861bd2] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-50"
                           >
-                            {isProcessing ? 'Gözlə...' : 'Qəbul et'}
+                            {isProcessing ? t('requests.wait') : t('requests.accept')}
                           </button>
 
                           <button
@@ -516,7 +524,7 @@ function Requests() {
                             onClick={() => handleRespond(request.id, false)}
                             className="flex-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                           >
-                            Rədd et
+                            {t('requests.reject')}
                           </button>
                         </>
                       )}
@@ -528,8 +536,8 @@ function Requests() {
                           className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
                         >
                           {isProcessing
-                            ? 'Gözlə...'
-                            : 'Dərsi tamamla'}
+                            ? t('requests.wait')
+                            : t('requests.complete')}
                         </button>
                       )}
 
@@ -539,7 +547,7 @@ function Requests() {
                           onClick={() => handleCancel(request.id)}
                           className="rounded-xl border border-[#e8b9f7] px-4 py-3 text-xs font-semibold text-[#8065a8] transition hover:bg-[#faf4fd] disabled:opacity-50"
                         >
-                          Ləğv et
+                          {t('requests.cancelBtn')}
                         </button>
                       )}
                     </div>
@@ -553,9 +561,8 @@ function Requests() {
         {/* Footer note */}
         <div className="mt-8 rounded-xl border border-[#ead0f6] bg-[#faf4fd] p-4">
           <p className="text-[10px] leading-5 text-[#8065a8]">
-            <strong className="text-[#861bd2]">Qeyd:</strong> Kreditlər
-            sorğu göndərildikdə deyil, müəllim dərsi tamamladıqda
-            iştirakçıların balansları arasında köçürülür.
+            <strong className="text-[#861bd2]">{t('requests.noteLabel')}</strong>{' '}
+            {t('requests.noteText')}
           </p>
         </div>
       </div>

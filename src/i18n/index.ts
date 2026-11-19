@@ -28,4 +28,19 @@ void i18n
     },
   })
 
+// <html lang> atributunu seçilmiş dillə sinxronlaşdırır — brauzerin avtomatik
+// tərcüməsi UI mətnləri ilə xəta mesajlarını qarışdırmasın
+function syncHtmlLang() {
+  document.documentElement.lang = i18n.resolvedLanguage ?? 'az'
+}
+
+i18n.on('languageChanged', syncHtmlLang)
+i18n.on('initialized', syncHtmlLang)
+
+// Mənbələr daxili (bundled) olduğundan init sinxron tamamlana bilər və
+// 'initialized' hadisəsi handler-lər qoşulmamışdan əvvəl gələ bilər —
+// ona görə ilkin sinxronlaşdırmanı burada da işə salırıq
+syncHtmlLang()
+Promise.resolve().then(syncHtmlLang)
+
 export default i18n

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
+import { authErrorKey } from '../lib/authErrors'
 
 function Login() {
   const { signIn } = useAuth()
@@ -24,14 +25,15 @@ function Login() {
       const result = await signIn(email.trim(), password)
 
       if (result.error) {
-        setError(t('login.error'))
+        // "Invalid login credentials" / "Email not confirmed" və s. — dilə çevrilir
+        setError(t(authErrorKey(result.error)))
         return
       }
 
       navigate('/skills', { replace: true })
     } catch (err) {
       console.error('Login error:', err)
-      setError(t('login.error'))
+      setError(t('errors.network'))
     } finally {
       setLoading(false)
     }

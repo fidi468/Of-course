@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
+import { authErrorKey } from '../lib/authErrors'
 
 function Register() {
   const { signUp } = useAuth()
@@ -38,26 +39,19 @@ function Register() {
 
       if (result.error) {
         console.error('Registration error:', result.error)
-
-        if (
-          result.error.message.toLowerCase().includes('already registered') ||
-          result.error.message.toLowerCase().includes('already exists')
-        ) {
-          setError('Bu e-poçt ünvanı ilə artıq qeydiyyatdan keçilib. Zəhmət olmasa, giriş edin.')
-        } else {
-          setError(result.error.message)
-        }
+        // "already registered" / "weak password" / rate limit və s. — dilə çevrilir
+        setError(t(authErrorKey(result.error)))
       } else if (
         result.data.user &&
         result.data.user.identities?.length === 0
       ) {
-        setError('Bu e-poçt ünvanı ilə artıq qeydiyyatdan keçilib. Zəhmət olmasa, giriş edin.')
+        setError(t('errors.alreadyRegistered'))
       } else {
         setMessage(t('register.success'))
       }
     } catch (err) {
       console.error('Unexpected registration error:', err)
-      setError('Qeydiyyat zamanı xəta baş verdi. Yenidən cəhd edin.')
+      setError(t('errors.network'))
     } finally {
       setLoading(false)
     }

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
+import { authErrorKey } from '../lib/authErrors'
 
 type Mode = 'checking' | 'form' | 'code' | 'no-session'
 
@@ -63,11 +64,11 @@ function ResetPassword() {
 
     try {
       const result = await updatePassword(password)
-      if (result.error) setError(t('reset.error'))
+      if (result.error) setError(t(authErrorKey(result.error)))
       else { setMessage(t('reset.success')); setPassword(''); setConfirmPassword('') }
     } catch (err) {
       console.error('Password update error:', err)
-      setError(t('reset.error'))
+      setError(t('errors.network'))
     } finally {
       setLoading(false)
     }
@@ -86,7 +87,8 @@ function ResetPassword() {
       })
 
       if (error) {
-        setCodeError(error.message)
+        // "Token has expired" / "Invalid token" və s. — dilə çevrilmiş xəta
+        setCodeError(t(authErrorKey(error)))
         return
       }
 
@@ -94,7 +96,7 @@ function ResetPassword() {
       setMode('form')
     } catch (err) {
       console.error('OTP verification error:', err)
-      setCodeError(t('reset.error'))
+      setCodeError(t('errors.network'))
     } finally {
       setCodeLoading(false)
     }
