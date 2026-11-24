@@ -109,23 +109,28 @@ export default function JitsiMeet({
             // Of Course brand mənşəli otaqlar üçün konfiqurasiya
             startWithAudioMuted: false,
             startWithVideoMuted: false,
-            prejoinPageEnabled: false, // birbaşa otağa daxil ol
+            prejoinPageEnabled: false, // birbaşa otağa daxil ol — əlavə Jitsi login yox
             disableDeepLinking: true, // mobil applara yönləndirmə yox
             // Görünüşü sadələşdir — lobbini söndür (artıq RLS təmin edir)
             enableLobby: false,
             requireDisplayName: false,
-          },
-          interfaceConfigOverwrite: {
-            // Jitsi-nin default zoom/random avatar-larını söndür
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            DEFAULT_BACKGROUND: '#fbf9ff', // Of Course pastel fon
-            // Tool bar-dakı düymələri məhdudlaşdır
-            TOOLBAR_BUTTONS: [
+            // Jitsi branding-i gizlətmək cəhdi (public server məhdudiyyəti var)
+            showBrandWatermark: false,
+            // Toolbar-dakı "Jitsi" loqosu və kömək düyməsi
+            toolbarButtons: [
               'microphone', 'camera', 'desktop', 'fullscreen',
               'fodeviceselection', 'hangup', 'chat', 'settings',
               'raisehand', 'filmstrip',
             ],
+          },
+          interfaceConfigOverwrite: {
+            // Jitsi-nin default zoom/random avatar-larını söndür
+            SHOW_JITSI_WATERMARK: false,       // əsas video sahasındaki loqo
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,       // marka su damgası
+            SHOW_POWERED_BY: false,            // "Powered by Jitsi" mətni
+            BRAND_WATERMARK_LINK: '',
+            JITSI_WATERMARK_LINK: '',
           },
           userInfo: {
             displayName,

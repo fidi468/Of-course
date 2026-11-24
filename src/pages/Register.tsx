@@ -1,9 +1,11 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
 import { authErrorKey } from '../lib/authErrors'
+import Turnstile from '../components/Turnstile'
 
 function Register() {
   const { signUp } = useAuth()
@@ -16,6 +18,7 @@ function Register() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -26,6 +29,24 @@ function Register() {
     if (password !== confirmPassword) {
       setError(t('register.passwordMismatch'))
       return
+    }
+
+    // CAPTCHA token yoxla (əgər aktivdirsə)
+    if (import.meta.env.VITE_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t('register.captchaRequired'))
+      return
+    }
+
+    // Server-side CAPTCHA verification (əgər token varsa)
+    if (turnstileToken) {
+      const { data: captchaValid, error: captchaErr } = await supabase.rpc('verify_turnstile', {
+        p_token: turnstileToken,
+      })
+      if (captchaErr || !captchaValid) {
+        setError(t('register.captchaFailed'))
+        setLoading(false)
+        return
+      }
     }
 
     setLoading(true)
@@ -146,6 +167,11 @@ function Register() {
             </button>
 
           </form>
+
+          {/* CAPTCHA — Cloudflare Turnstile */}
+          <div className="mt-4">
+            <Turnstile onToken={setTurnstileToken} />
+          </div>
 
           {error && (
             <p role="alert" className="text-red-600 mt-4 text-sm">

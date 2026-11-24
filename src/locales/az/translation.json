@@ -84,7 +84,9 @@
     "login": "Daxil ol",
     "passwordMismatch": "Şifrələr uyğun gəlmir!",
     "success": "Qeydiyyat sorğun göndərildi! E-poçtunu yoxla.",
-    "error": "Qeydiyyat zamanı xəta baş verdi. Yenidən cəhd et."
+    "error": "Qeydiyyat zamanı xəta baş verdi. Yenidən cəhd et.",
+    "captchaRequired": "CAPTCHA təsdiqlənməyib",
+    "captchaFailed": "CAPTCHA yoxlaması uğursuz"
   },
   "forgot": {
     "title": "Şifrəni unutmusan?",
@@ -383,6 +385,33 @@
     "notAcceptedTitle": "Dərs hələ qəbul edilməyib",
     "notAcceptedMsg": "Video otaq yalnız dərs qəbul edildikdən sonra mümkündür.",
     "roomError": "Otaq yaradıla bilmədi. Bir az sonra yenidən cəhd edin.",
-    "leaveRoom": "Otağı tərk et"
+    "leaveRoom": "Otağı tərk et",
+    "completed": "Dərs tamamlandı",
+    "completedMsg": "Dərs uğurla tamamlandı! Kreditlər köçürüldü."
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "subtitle": "İstifadəçi şikayətləri və moderasiya",
+    "reportsTitle": "Şikayətlər",
+    "noReports": "Şikayət yoxdur",
+    "usersTitle": "İstifadəçilər",
+    "userName": "Ad",
+    "trustLevel": "Etibar səviyyəsi",
+    "status": "Status",
+    "actions": "Əməliyyatlar",
+    "active": "Aktiv",
+    "suspended": "Dayandırılıb",
+    "verify": "Təsdiqlə",
+    "suspend": "Dayandır",
+    "unsuspend": "Bərpa et",
+    "resolve": "Həll et",
+    "dismiss": "Rədd et",
+    "suspendReasonPrompt": "Dayandırma səbəbi?",
+    "suspendDurationPrompt": "Müddət (saat, boş = qalıcı)?",
+    "resolutionNotePrompt": "Həll qeydi (opsional)?",
+    "suspendedSuccess": "İstifadəçi dayandırıldı",
+    "unsuspendedSuccess": "İstifadəçi bərpa edildi",
+    "verifiedSuccess": "İstifadəçi təsdiqləndi",
+    "resolvedSuccess": "Şikayət həll edildi"
   }
 }

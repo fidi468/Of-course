@@ -18,6 +18,7 @@ import Sessions from './pages/Sessions'
 import Profile from './pages/Profile'
 import NotFound from './pages/NotFound'
 import LessonRoom from './pages/LessonRoom'
+import Admin from './pages/Admin'
 import RecoveryRedirect from './components/RecoveryRedirect'
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
             <Route path="/requests" element={<Requests />} />
             <Route path="/sessions" element={<Sessions />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
 
           {/* Mövcud olmayan URL-lər üçün 404 */}

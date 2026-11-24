@@ -84,7 +84,9 @@
     "login": "Giriş yap",
     "passwordMismatch": "Şifreler eşleşmiyor!",
     "success": "Kayıt isteğin gönderildi! E-postanı kontrol et.",
-    "error": "Kayıt yapılamadı. Lütfen tekrar dene."
+    "error": "Kayıt yapılamadı. Lütfen tekrar dene.",
+    "captchaRequired": "CAPTCHA doğrulanmadı",
+    "captchaFailed": "CAPTCHA doğrulaması başarısız"
   },
   "forgot": {
     "title": "Şifreni mi unuttun?",
@@ -383,6 +385,33 @@
     "notAcceptedTitle": "Ders henüz kabul edilmedi",
     "notAcceptedMsg": "Video oda yalnızca ders kabul edildikten sonra kullanılabilir.",
     "roomError": "Oda oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
-    "leaveRoom": "Odanı terk et"
+    "leaveRoom": "Odanı terk et",
+    "completed": "Ders tamamlandı",
+    "completedMsg": "Ders başarıyla tamamlandı! Krediler aktarıldı."
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "subtitle": "Kullanıcı şikayetleri ve moderasyon",
+    "reportsTitle": "Şikayetler",
+    "noReports": "Şikayet yok",
+    "usersTitle": "Kullanıcılar",
+    "userName": "Ad",
+    "trustLevel": "Güven seviyesi",
+    "status": "Durum",
+    "actions": "İşlemler",
+    "active": "Aktif",
+    "suspended": "Askıya alındı",
+    "verify": "Doğrula",
+    "suspend": "Askıya al",
+    "unsuspend": "Geri al",
+    "resolve": "Çöz",
+    "dismiss": "Reddet",
+    "suspendReasonPrompt": "Askıya alma sebebi?",
+    "suspendDurationPrompt": "Süre (saat, boş = kalıcı)?",
+    "resolutionNotePrompt": "Çözüm notu (opsiyonel)?",
+    "suspendedSuccess": "Kullanıcı askıya alındı",
+    "unsuspendedSuccess": "Kullanıcı geri alındı",
+    "verifiedSuccess": "Kullanıcı doğrulandı",
+    "resolvedSuccess": "Şikayet çözüldü"
   }
 }

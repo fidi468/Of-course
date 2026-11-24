@@ -6,22 +6,32 @@
  * Workflow:
  * 1. URL-dən requestId oxuyur
  * 2. useLessonRoom hook-u ilə otaq məlumatlarını əldə edir
- * 3. İştirakçı deyilsə — xəta göstərir
- * 4. Otaq hazırdırsa — JitsiMeet komponentini render edir
- * 5. "Çıxış" düyməsi — /sessions səhifəsinə qayıdır
+ * 3. Dərs `start_lesson` RPC-i ilə başladılır (server tərəfindən vaxt qeyd olunur)
+ * 4. Countdown timer server vaxtına əsaslanır (səhifə yenilənsə də sıfırlanmır)
+ * 5. Vaxt bitəndə `complete_lesson` RPC-i çağrılır (server kredit köçürür)
+ * 6. "Çıxış" düyməsi — /sessions səhifəsinə qayıdır
  *
  * Təhlükəsizlik:
- * - Bu səhifə ProtectedRoute içindədir (yalnız authenticated istifadəçi)
- * - useLessonRoom RLS vasitəsilə iştirakçı statusunu yoxlayır
- * - lessonRequest.status yalnız 'accepted' və ya 'completed' olduqda otağa icazə
+ * - Kredit köçürülməsi yalnız server tərəfindən (complete_lesson RPC)
+ * - Timer yalnız göstəriş üçündür — kreditə qərar vermir
+ * - complete_lesson vaxt yoxlaması edir (dərs müddəti tamamlanmalıdır)
  */
 
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 import { useLessonRoom } from '../hooks/useLessonRoom'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
 import JitsiMeet from '../components/JitsiMeet'
+
+function formatTime(seconds: number): string {
+  if (seconds <= 0) return '00:00:00'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
 
 export default function LessonRoom() {
   const { requestId } = useParams<{ requestId: string }>()
@@ -30,16 +40,101 @@ export default function LessonRoom() {
   const { t } = useTranslation()
 
   const parsedRequestId = requestId ? Number(requestId) : null
-  const { loading, error, roomName, lessonRequest, isParticipant } =
+  const { loading, error, roomName, lessonRequest, isParticipant, timing, refreshTiming } =
     useLessonRoom(parsedRequestId)
 
-  // İştirakçı deyilsə və ya xəta varsa — sessions səhifəsinə yönləndir
+  // Countdown timer state — server vaxtına əsaslanır
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
+  const [lessonStarted, setLessonStarted] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [completeMessage, setCompleteMessage] = useState('')
+
+  // Dərsi başlat və complete_lesson çağır — inline olaraq effect-lərdə
+
+  // Timing məlumatları gələndə timer-i yenilə
   useEffect(() => {
-    if (!loading && (!isParticipant || error) && !roomName) {
-      // Yalnız icazəsiz cəhdi avtomatik yönləndir; xəta mesajını göstərmək üçün
-      // navigate('/sessions', { replace: true }) — amma əvvəlcə xətanı göstərək
+    if (!timing) return
+
+    const captured = timing // null-yoxlamadan sonra capture et
+
+    // Pattern C: inner async funksiya içində setState
+    async function applyTiming() {
+      await Promise.resolve()
+      setRemainingSeconds(captured.remaining_seconds)
+      if (captured.lesson_started_at && !lessonStarted) {
+        setLessonStarted(true)
+      }
     }
-  }, [loading, isParticipant, error, roomName])
+    void applyTiming()
+  }, [timing, lessonStarted])
+
+  // Otağa qoşulanda iştirakçı mark_joined çağırır
+  // (hər iki iştirakçı qoşulanda lesson_started_at avtomatik set olunur)
+  useEffect(() => {
+    if (!roomName || !isParticipant || lessonRequest?.status !== 'accepted') {
+      return
+    }
+
+    let cancelled = false
+
+    async function markJoined() {
+      const { error: joinErr } = await supabase.rpc('mark_joined', {
+        p_request_id: parsedRequestId,
+      })
+      if (cancelled) return
+      if (joinErr) {
+        console.error('mark_joined error:', joinErr.message)
+      } else {
+        setLessonStarted(true)
+        await refreshTiming()
+      }
+    }
+
+    void markJoined()
+
+    return () => {
+      cancelled = true
+    }
+  }, [roomName, isParticipant, lessonRequest, parsedRequestId, refreshTiming])
+
+  // Countdown timer — hər saniyə yenilə
+  useEffect(() => {
+    if (remainingSeconds === null || remainingSeconds <= 0) return
+    const interval = setInterval(() => {
+      setRemainingSeconds(prev => (prev !== null ? Math.max(0, prev - 1) : null))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [remainingSeconds])
+
+  // Vaxt bitəndə avtomatik complete_lesson çağır
+  useEffect(() => {
+    if (remainingSeconds !== 0 || lessonRequest?.status !== 'accepted' || completing) {
+      return
+    }
+
+    let cancelled = false
+
+    async function finish() {
+      setCompleting(true)
+      const { error: completeErr } = await supabase.rpc('complete_lesson', {
+        p_request_id: parsedRequestId,
+      })
+      if (cancelled) return
+      if (completeErr) {
+        setCompleteMessage(completeErr.message)
+      } else {
+        setCompleteMessage(t('liveLesson.completedMsg'))
+      }
+      setCompleting(false)
+      await refreshTiming()
+    }
+
+    void finish()
+
+    return () => {
+      cancelled = true
+    }
+  }, [remainingSeconds, lessonRequest, completing, parsedRequestId, refreshTiming, t])
 
   if (loading) {
     return (
@@ -122,7 +217,7 @@ export default function LessonRoom() {
 
   return (
     <div className="flex h-screen flex-col bg-[#1a0a3a]">
-      {/* Header — Of Course branding + back button */}
+      {/* Header — Of Course branding + countdown timer + back button */}
       <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-2">
           <img
@@ -133,12 +228,35 @@ export default function LessonRoom() {
           <span className="text-sm font-bold text-white">Of Course Live</span>
         </div>
 
-        <button
-          onClick={() => navigate('/sessions', { replace: true })}
-          className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
-        >
-          ← {t('liveLesson.leaveRoom')}
-        </button>
+        {/* Countdown timer — server vaxtına əsaslanır */}
+        <div className="flex items-center gap-3">
+          {remainingSeconds !== null && (
+            <div
+              className={`rounded-full px-4 py-1.5 text-sm font-bold tabular-nums ${
+                remainingSeconds <= 0
+                  ? 'bg-green-500/20 text-green-300'
+                  : remainingSeconds < 300
+                  ? 'bg-red-500/20 text-red-300 animate-pulse'
+                  : 'bg-white/10 text-white'
+              }`}
+            >
+              {remainingSeconds <= 0
+                ? t('liveLesson.completed')
+                : `⏱ ${formatTime(remainingSeconds)}`}
+            </div>
+          )}
+
+          {completeMessage && (
+            <span className="text-xs font-semibold text-green-300">{completeMessage}</span>
+          )}
+
+          <button
+            onClick={() => navigate('/sessions', { replace: true })}
+            className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+          >
+            ← {t('liveLesson.leaveRoom')}
+          </button>
+        </div>
       </header>
 
       {/* Video area — JitsiMeet tam ekran */}

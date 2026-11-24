@@ -84,7 +84,9 @@
     "login": "Log in",
     "passwordMismatch": "Passwords do not match!",
     "success": "Your registration request was sent! Check your email.",
-    "error": "Unable to register. Please try again."
+    "error": "Unable to register. Please try again.",
+    "captchaRequired": "CAPTCHA not verified",
+    "captchaFailed": "CAPTCHA verification failed"
   },
   "forgot": {
     "title": "Forgot your password?",
@@ -383,6 +385,33 @@
     "notAcceptedTitle": "Lesson not accepted yet",
     "notAcceptedMsg": "The video room is only available after the lesson is accepted.",
     "roomError": "Could not create the room. Please try again later.",
-    "leaveRoom": "Leave room"
+    "leaveRoom": "Leave room",
+    "completed": "Lesson completed",
+    "completedMsg": "Lesson completed successfully! Credits transferred."
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "subtitle": "User reports and moderation",
+    "reportsTitle": "Reports",
+    "noReports": "No reports",
+    "usersTitle": "Users",
+    "userName": "Name",
+    "trustLevel": "Trust level",
+    "status": "Status",
+    "actions": "Actions",
+    "active": "Active",
+    "suspended": "Suspended",
+    "verify": "Verify",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
+    "resolve": "Resolve",
+    "dismiss": "Dismiss",
+    "suspendReasonPrompt": "Suspension reason?",
+    "suspendDurationPrompt": "Duration (hours, empty = permanent)?",
+    "resolutionNotePrompt": "Resolution note (optional)?",
+    "suspendedSuccess": "User suspended",
+    "unsuspendedSuccess": "User unsuspended",
+    "verifiedSuccess": "User verified",
+    "resolvedSuccess": "Report resolved"
   }
 }

@@ -13,7 +13,7 @@
  * - room_name təsadüfi UUID ilə generate olunur (proqnozlaşdırıla bilməz)
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from './useAuth'
 
@@ -33,6 +33,17 @@ type LessonRequestRow = {
   duration_hours: number
   status: string
   scheduled_at: string | null
+  lesson_started_at: string | null
+  lesson_ended_at: string | null
+}
+
+type LessonTiming = {
+  status: string
+  lesson_started_at: string | null
+  lesson_ended_at: string | null
+  duration_hours: number
+  elapsed_seconds: number
+  remaining_seconds: number
 }
 
 type UseLessonRoomResult = {
@@ -41,6 +52,8 @@ type UseLessonRoomResult = {
   roomName: string | null
   lessonRequest: LessonRequestRow | null
   isParticipant: boolean
+  timing: LessonTiming | null
+  refreshTiming: () => Promise<void>
 }
 
 export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
@@ -50,6 +63,17 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
   const [roomName, setRoomName] = useState<string | null>(null)
   const [lessonRequest, setLessonRequest] = useState<LessonRequestRow | null>(null)
   const [isParticipant, setIsParticipant] = useState(false)
+  const [timing, setTiming] = useState<LessonTiming | null>(null)
+
+  const refreshTiming = useCallback(async () => {
+    if (!requestId) return
+    const { data, error: timingErr } = await supabase.rpc('get_lesson_timing', {
+      p_request_id: requestId,
+    })
+    if (!timingErr && data) {
+      setTiming(data as LessonTiming)
+    }
+  }, [requestId])
 
   useEffect(() => {
     if (authLoading) return
@@ -68,7 +92,7 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
         // 1) lesson_request-i yoxla — RLS yalnız iştirakçılara icazə verir
         const { data: reqData, error: reqError } = await supabase
           .from('lesson_requests')
-          .select('id, requester_id, teacher_id, skill_id, duration_hours, status, scheduled_at')
+          .select('id, requester_id, teacher_id, skill_id, duration_hours, status, scheduled_at, lesson_started_at, lesson_ended_at')
           .eq('id', requestId)
           .single()
 
@@ -153,6 +177,10 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
         }
 
         setRoomName((inserted as { room_name: string }).room_name)
+
+        // Dərs vaxt məlumatlarını əldə et (countdown timer üçün)
+        await refreshTiming()
+
         setLoading(false)
       } catch (err: unknown) {
         if (ignore) return
@@ -166,7 +194,7 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
     return () => {
       ignore = true
     }
-  }, [user, authLoading, requestId])
+  }, [user, authLoading, requestId, refreshTiming])
 
   return {
     loading: authLoading || loading,
@@ -174,5 +202,7 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
     roomName,
     lessonRequest,
     isParticipant,
+    timing,
+    refreshTiming,
   }
 }
