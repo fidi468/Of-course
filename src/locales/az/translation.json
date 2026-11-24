@@ -373,5 +373,16 @@
     "network": "Şəbəkə xətası. İnternet bağlantısını yoxla və yenidən cəhd et.",
     "generic": "Əməliyyat zamanı xəta baş verdi. Zəhmət olmasa, yenidən cəhd et.",
     "cooldown": "Yeni link istəməzdən əvvəl {{seconds}} san gözlə."
+  },
+  "liveLesson": {
+    "join": "Video derse qoşul",
+    "loading": "Video otaq hazırlanır...",
+    "accessDenied": "İcazə yoxdur",
+    "accessDeniedMsg": "Bu dərs otağına daxil olmaq üçün icazəniz yoxdur.",
+    "backToSessions": "Seanslara qayıt",
+    "notAcceptedTitle": "Dərs hələ qəbul edilməyib",
+    "notAcceptedMsg": "Video otaq yalnız dərs qəbul edildikdən sonra mümkündür.",
+    "roomError": "Otaq yaradıla bilmədi. Bir az sonra yenidən cəhd edin.",
+    "leaveRoom": "Otağı tərk et"
   }
 }

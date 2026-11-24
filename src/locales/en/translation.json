@@ -373,5 +373,16 @@
     "network": "Network error. Check your internet connection and try again.",
     "generic": "Something went wrong. Please try again.",
     "cooldown": "Wait {{seconds}}s before requesting a new link."
+  },
+  "liveLesson": {
+    "join": "Join video lesson",
+    "loading": "Preparing video room...",
+    "accessDenied": "Access denied",
+    "accessDeniedMsg": "You do not have permission to access this lesson room.",
+    "backToSessions": "Back to sessions",
+    "notAcceptedTitle": "Lesson not accepted yet",
+    "notAcceptedMsg": "The video room is only available after the lesson is accepted.",
+    "roomError": "Could not create the room. Please try again later.",
+    "leaveRoom": "Leave room"
   }
 }

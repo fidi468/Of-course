@@ -17,6 +17,7 @@ import Requests from './pages/Requests'
 import Sessions from './pages/Sessions'
 import Profile from './pages/Profile'
 import NotFound from './pages/NotFound'
+import LessonRoom from './pages/LessonRoom'
 import RecoveryRedirect from './components/RecoveryRedirect'
 
 function App() {
@@ -24,6 +25,11 @@ function App() {
     <BrowserRouter>
       <RecoveryRedirect />
       <Routes>
+        {/* Tam ekran video dərs otağı — MainLayout/Navbar yoxdur */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/lessons/:requestId/room" element={<LessonRoom />} />
+        </Route>
+
         <Route element={<MainLayout />}>
 
           {/* Qonaqlar üçün səhifələr */}

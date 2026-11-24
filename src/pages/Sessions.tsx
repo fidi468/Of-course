@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +74,7 @@ const DATE_LOCALES: Record<string, string> = {
 function Sessions() {
   const { user } = useAuth()
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
 
   const dateLocale = DATE_LOCALES[i18n.resolvedLanguage ?? 'az'] ?? 'az-AZ'
 
@@ -198,6 +199,16 @@ function Sessions() {
                   })}
             </p>
           </div>
+
+          {/* "Join Video Lesson" düyməsi — yalnız accepted (scheduled) sessiyalar üçün */}
+          {!isPast && (
+            <button
+              onClick={() => navigate(`/lessons/${session.id}/room`)}
+              className="shrink-0 rounded-full bg-gradient-to-r from-[#7900c8] to-[#9217d8] px-4 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md whitespace-nowrap"
+            >
+              {t('liveLesson.join')}
+            </button>
+          )}
         </div>
       </article>
     )

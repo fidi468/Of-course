@@ -373,5 +373,16 @@
     "network": "Ağ hatası. İnternet bağlantını kontrol et ve tekrar dene.",
     "generic": "İşlem sırasında bir hata oluştu. Lütfen tekrar dene.",
     "cooldown": "Yeni link istemeden önce {{seconds}} sn bekle."
+  },
+  "liveLesson": {
+    "join": "Video derse katıl",
+    "loading": "Video oda hazırlanıyor...",
+    "accessDenied": "Erişim reddedildi",
+    "accessDeniedMsg": "Bu ders odasına erişim izniniz yok.",
+    "backToSessions": "Seanslara dön",
+    "notAcceptedTitle": "Ders henüz kabul edilmedi",
+    "notAcceptedMsg": "Video oda yalnızca ders kabul edildikten sonra kullanılabilir.",
+    "roomError": "Oda oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
+    "leaveRoom": "Odanı terk et"
   }
 }
