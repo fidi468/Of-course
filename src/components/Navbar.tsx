@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useCredits } from '../hooks/useCredits'
 import { useTranslation } from 'react-i18next'
+import NotificationBell from './NotificationBell'
 
 export default function Navbar() {
   const { user, loading } = useAuth()
@@ -90,6 +91,9 @@ export default function Navbar() {
             </span>
           ) : user ? (
             <>
+              {/* Notifications bell */}
+              <NotificationBell />
+
               {/* Credit balance */}
               <Link
                 to="/credits"

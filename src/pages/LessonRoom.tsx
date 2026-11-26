@@ -18,7 +18,7 @@
  */
 
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useLessonRoom } from '../hooks/useLessonRoom'
 import { useAuth } from '../hooks/useAuth'
@@ -52,11 +52,35 @@ export default function LessonRoom() {
     console.error('Jitsi error:', msg)
   }, [])
 
+  // Jitsi videoConferenceJoined → digər iştirakçıya bildiriş.
+  // VƏZİFƏ PAYI: yalnız bildirişdir — attendance (mark_joined) və kredit
+  // mexanizmi ilə heç bir əlaqəsi yoxdur. Sessiyada bir dəfə çağırılır
+  // (Jitsi reconnect-lərdə hadisəni təkrar ata bilər; server tərəfdə əlavə
+  // 3 dəqiqəlik dedupe də var).
+
   // Countdown timer state — server vaxtına əsaslanır
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
   const [lessonStarted, setLessonStarted] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [completeMessage, setCompleteMessage] = useState('')
+
+  // Qoşulma bildirişi sessiyada bir dəfə
+  const joinNotifiedRef = useRef(false)
+
+  const handleJitsiJoined = useCallback(() => {
+    if (!parsedRequestId || joinNotifiedRef.current) return
+    joinNotifiedRef.current = true
+
+    void supabase
+      .rpc('notify_participant_joined', { p_request_id: parsedRequestId })
+      .then(({ error: notifyErr }) => {
+        if (notifyErr) {
+          // Bildiriş uğursuz olarsa — reconnect-də yenidən cəhd üçün reset
+          joinNotifiedRef.current = false
+          console.error('notify_participant_joined error:', notifyErr.message)
+        }
+      })
+  }, [parsedRequestId])
 
   // Dərsi başlat və complete_lesson çağır — inline olaraq effect-lərdə
 
@@ -342,6 +366,7 @@ export default function LessonRoom() {
           roomName={roomName}
           displayName={displayName}
           avatarUrl={avatarUrl}
+          onJoined={handleJitsiJoined}
           onLeave={handleBackToSessions}
           onError={handleJitsiError}
         />

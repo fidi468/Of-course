@@ -432,5 +432,28 @@
     "blockingReason": "Причина блокировки",
     "approveCredit": "Одобрить кредит",
     "cancelLesson": "Отменить урок"
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "unknownUser": "Пользователь",
+    "markAllRead": "Отметить все как прочитанные",
+    "empty": "Пока нет уведомлений",
+    "emptyHint": "Запросы на занятия, напоминания и события появятся здесь",
+    "enableBrowser": "Включить уведомления браузера",
+    "browserEnabled": "Уведомления браузера включены",
+    "browserDenied": "Уведомления браузера заблокированы — включить можно в настройках браузера",
+    "unreadCount": "{{count}} непрочитанных",
+    "browserTitle": "Уведомление Of Course",
+    "types": {
+      "lesson_request": "{{name}} отправил вам запрос на занятие",
+      "lesson_accepted": "{{name}} принял ваш запрос на занятие",
+      "lesson_rejected": "{{name}} отклонил ваш запрос на занятие",
+      "lesson_cancelled": "{{name}} отменил занятие",
+      "lesson_started": "Занятие началось — войдите в комнату",
+      "participant_joined": "{{name}} присоединился к видеокомнате",
+      "lesson_reminder_24h": "Занятие начнется через 24 часа",
+      "lesson_reminder_1h": "Занятие начнется через 1 час",
+      "lesson_reminder_10min": "Занятие начнется через 10 минут"
+    }
   }
 }

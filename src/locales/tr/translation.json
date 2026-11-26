@@ -432,5 +432,28 @@
     "blockingReason": "Engelleme sebebi",
     "approveCredit": "Krediyi onayla",
     "cancelLesson": "Dersi iptal et"
+  },
+  "notifications": {
+    "title": "Bildirimler",
+    "unknownUser": "Kullanıcı",
+    "markAllRead": "Tümünü okundu işaretle",
+    "empty": "Henüz bildirim yok",
+    "emptyHint": "Ders talepleri, hatırlatmalar ve etkinlikler burada görünecek",
+    "enableBrowser": "Tarayıcı bildirimlerini etkinleştir",
+    "browserEnabled": "Tarayıcı bildirimleri etkin",
+    "browserDenied": "Tarayıcı bildirimleri engellendi — tarayıcı ayarlarından etkinleştirebilirsin",
+    "unreadCount": "{{count}} okunmamış",
+    "browserTitle": "Of Course bildirimi",
+    "types": {
+      "lesson_request": "{{name}} sana ders talebi gönderdi",
+      "lesson_accepted": "{{name}} ders talebini kabul etti",
+      "lesson_rejected": "{{name}} ders talebini reddetti",
+      "lesson_cancelled": "{{name}} dersi iptal etti",
+      "lesson_started": "Ders başladı — odaya katıl",
+      "participant_joined": "{{name}} video odaya katıldı",
+      "lesson_reminder_24h": "Derse 24 saat kaldı",
+      "lesson_reminder_1h": "Derse 1 saat kaldı",
+      "lesson_reminder_10min": "Ders 10 dakika içinde başlıyor"
+    }
   }
 }

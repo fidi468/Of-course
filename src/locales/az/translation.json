@@ -432,5 +432,28 @@
     "blockingReason": "Bloklayan səbəb",
     "approveCredit": "Krediti təsdiqlə",
     "cancelLesson": "Dərsi ləğv et"
+  },
+  "notifications": {
+    "title": "Bildirişlər",
+    "unknownUser": "İstifadəçi",
+    "markAllRead": "Hamısını oxunmuş et",
+    "empty": "Hələ bildiriş yoxdur",
+    "emptyHint": "Dərs sorğuları, xatırlatmalar və hadisələr burada görünəcək",
+    "enableBrowser": "Brauzer bildirişlərini aktiv et",
+    "browserEnabled": "Brauzer bildirişləri aktivdir",
+    "browserDenied": "Brauzer bildirişləri bloklanıb — brauzer parametrlərindən aktiv edə bilərsən",
+    "unreadCount": "{{count}} oxunmamış",
+    "browserTitle": "Of Course bildirişi",
+    "types": {
+      "lesson_request": "{{name}} sənə dərs sorğusu göndərdi",
+      "lesson_accepted": "{{name}} dərs sorğunu qəbul etdi",
+      "lesson_rejected": "{{name}} dərs sorğunu rədd etdi",
+      "lesson_cancelled": "{{name}} dərsi ləğv etdi",
+      "lesson_started": "Dərs başladı — otağa daxil ol",
+      "participant_joined": "{{name}} video otağa daxil oldu",
+      "lesson_reminder_24h": "Dərsə 24 saat qalıb",
+      "lesson_reminder_1h": "Dərsə 1 saat qalıb",
+      "lesson_reminder_10min": "Dərs 10 dəqiqəyə başlayır"
+    }
   }
 }

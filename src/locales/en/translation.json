@@ -432,5 +432,28 @@
     "blockingReason": "Blocking reason",
     "approveCredit": "Approve credit",
     "cancelLesson": "Cancel lesson"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "unknownUser": "User",
+    "markAllRead": "Mark all as read",
+    "empty": "No notifications yet",
+    "emptyHint": "Lesson requests, reminders and events will appear here",
+    "enableBrowser": "Enable browser notifications",
+    "browserEnabled": "Browser notifications enabled",
+    "browserDenied": "Browser notifications are blocked — you can enable them in browser settings",
+    "unreadCount": "{{count}} unread",
+    "browserTitle": "Of Course notification",
+    "types": {
+      "lesson_request": "{{name}} sent you a lesson request",
+      "lesson_accepted": "{{name}} accepted your lesson request",
+      "lesson_rejected": "{{name}} rejected your lesson request",
+      "lesson_cancelled": "{{name}} cancelled the lesson",
+      "lesson_started": "The lesson has started — join the room",
+      "participant_joined": "{{name}} joined the video room",
+      "lesson_reminder_24h": "Your lesson starts in 24 hours",
+      "lesson_reminder_1h": "Your lesson starts in 1 hour",
+      "lesson_reminder_10min": "Your lesson starts in 10 minutes"
+    }
   }
 }

@@ -36,7 +36,8 @@ type JitsiApi = {
   dispose: () => void
   executeCommand: (command: string, ...args: unknown[]) => void
   addEventListeners: (events: Record<string, (payload: unknown) => void>) => void
-  removeEventListeners: (events: Record<string, (payload: unknown) => void>) => void
+  // rəsmi external API: removeEventListeners(events: string[])
+  removeEventListeners: (events: string[]) => void
 }
 
 interface JitsiOptions {
@@ -54,6 +55,8 @@ type JitsiMeetProps = {
   roomName: string
   displayName: string
   avatarUrl?: string
+  /** İstifadəçi Jitsi otağına gerçək daxil olduqda (videoConferenceJoined) */
+  onJoined?: () => void
   onLeave?: () => void
   onError?: (message: string) => void
 }
@@ -86,6 +89,7 @@ export default function JitsiMeet({
   roomName,
   displayName,
   avatarUrl,
+  onJoined,
   onLeave,
   onError,
 }: JitsiMeetProps) {
@@ -96,10 +100,12 @@ export default function JitsiMeet({
   const [errorMsg, setErrorMsg] = useState('')
 
   // Callback-lər ref-lərdə — identity dəyişsə də Jitsi yenidən başlatılmır
+  const onJoinedRef = useRef(onJoined)
   const onLeaveRef = useRef(onLeave)
   const onErrorRef = useRef(onError)
 
   useEffect(() => {
+    onJoinedRef.current = onJoined
     onLeaveRef.current = onLeave
     onErrorRef.current = onError
   })
@@ -164,6 +170,13 @@ export default function JitsiMeet({
 
         // Hadisə dinləyiciləri — ref-lər vasitəsilə ən son callback çağırılır
         api.addEventListeners({
+          // İstifadəçi bu otağa gerçək daxil oldu (prejoin keçildi, media hazır)
+          // VƏZİFƏ PAYI: bu callback yalnız BİLDİRİŞ üçündür — attendance
+          // sübutu kimi istifadə edilmir (attendance mark_joined/heartbeat
+          // ilə izlənir), kredit mexanizminə təsir etmir
+          videoConferenceJoined: () => {
+            if (!disposed) onJoinedRef.current?.()
+          },
           videoConferenceLeft: () => {
             if (!disposed) onLeaveRef.current?.()
           },
@@ -185,6 +198,17 @@ export default function JitsiMeet({
     return () => {
       disposed = true
       if (apiRef.current) {
+        // Hadisə dinləyicilərini dispose-dan ƏVVƏL açıq şəkildə təmizlə —
+        // dangling callback-lər memory leak yaratmasın
+        try {
+          apiRef.current.removeEventListeners([
+            'videoConferenceJoined',
+            'videoConferenceLeft',
+            'participantLeft',
+          ])
+        } catch {
+          // bəzi Jitsi versiyalarında dispose artıq təmizləmiş olur — ignore
+        }
         try {
           apiRef.current.dispose()
         } catch {

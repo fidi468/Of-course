@@ -212,6 +212,20 @@ const auth = {
 const supabaseMock = {
   auth,
   from: (table: string) => makeQuery(table, tableResult(table)),
+  // Bildiriş sistemi və digər RPC-lər üçün no-op rpc
+  rpc: async () => ({ data: null, error: null }),
+  // Realtime channel mock — chainable .on().subscribe()
+  channel: () => {
+    const channel = {
+      on: () => channel,
+      subscribe: (cb?: (status: string) => void) => {
+        void cb?.('SUBSCRIBED')
+        return channel
+      },
+    }
+    return channel
+  },
+  removeChannel: async () => 'ok',
   functions: { invoke: async () => ({ data: null, error: null }) },
   storage: {
     from: () => ({
