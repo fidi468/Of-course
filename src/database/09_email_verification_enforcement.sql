@@ -1,42 +1,58 @@
 -- =====================================================================
--- Of Course — 09_email_verification_enforcement.sql
--- AUDIT FIX: Email təsdiqlənməyən istifadəçilərin dərs istəyi göndərməsinin qarşısını al.
+-- 09_email_verification_enforcement — PRODUCTION-ADAPTED VERSION
 --
--- Problem:
---   auth.users.email_confirmed_at RLS policy-də istifadə oluna bilmir
---   deyə düşünülürdü. Əslində, auth.users cədvəli SELECT üçün açıqdır
---   (Supabase default) və subquery-də istifadə oluna bilər.
+-- DEVIATION from repo version (documented for audit):
+--   Repo version's RLS policies query auth.users directly inside the
+--   policy expression. Policies execute with the privileges of the
+--   querying role (`authenticated`), which on Supabase has NO SELECT
+--   grant on auth.users (verified on production:
+--   has_table_privilege('authenticated','auth.users','SELECT') = false).
+--   Applying the repo version verbatim would break EVERY
+--   lesson_requests / user_skills INSERT with
+--   "permission denied for table users".
 --
--- Həll:
---   RLS policy-ə auth.users subquery əlavə et: email_confirmed_at IS NOT NULL
---   Bu, email təsdiqlənməyən istifadəçinin lesson_requests INSERT-inə mane olur.
---
--- Təhlükəsizlik:
---   - Server tərəfdə yoxlanır (RLS policy)
---   - Frontend yoxlaması əlavə təbəqə (UX üçün)
---   - auth.users SELECT-anonim açıqdır, amma yalnız id və email_confirmed_at
---     oxunur (敏感 məlumat yoxdur)
+-- Fix: SECURITY DEFINER helper public.email_is_confirmed(uuid) — reads
+-- auth.users as the function owner (postgres). Enforces the SAME
+-- email-verified requirement server-side; leaks nothing (boolean only).
+-- respond_to_request is unchanged: as SECURITY DEFINER it may read
+-- auth.users directly.
 -- =====================================================================
 
 begin;
 
 -- ---------------------------------------------------------------------
--- 1) lesson_requests INSERT policy-ni yenilə
---    Email təsdiqlənməyən istifadəçi dərs istəyi göndərə bilməz
+-- 0) Helper: email confirmation check (SECURITY DEFINER)
+-- ---------------------------------------------------------------------
+create or replace function public.email_is_confirmed(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path to ''
+as $function$
+  select exists (
+    select 1 from auth.users
+     where id = p_user_id
+       and email_confirmed_at is not null
+  );
+$function$;
+
+revoke execute on function public.email_is_confirmed(uuid) from public, anon;
+grant execute on function public.email_is_confirmed(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 1) lesson_requests INSERT policy — email must be confirmed
 -- ---------------------------------------------------------------------
 drop policy if exists "requests_insert_own" on public.lesson_requests;
+drop policy if exists "requests_insert_own_verified" on public.lesson_requests;
 
 create policy "requests_insert_own_verified" on public.lesson_requests
   for insert to authenticated
   with check (
     requester_id = auth.uid()
     and status = 'pending'
-    -- Email təsdiqlənməli
-    and exists (
-      select 1 from auth.users
-       where id = auth.uid()
-         and email_confirmed_at is not null
-    )
+    -- Email təsdiqlənməli (SECURITY DEFINER helper üzərindən)
+    and public.email_is_confirmed(auth.uid())
     -- İstifadəçi dayandırılmamalı
     and not exists (
       select 1 from public.profiles
@@ -47,28 +63,22 @@ create policy "requests_insert_own_verified" on public.lesson_requests
   );
 
 -- ---------------------------------------------------------------------
--- 2) user_skills INSERT policy-ni də yenilə (verified istifadəçilər)
+-- 2) user_skills INSERT policy — email must be confirmed
 -- ---------------------------------------------------------------------
 drop policy if exists "user_skills_insert_own" on public.user_skills;
+drop policy if exists "user_skills_insert_own_verified" on public.user_skills;
 
 create policy "user_skills_insert_own_verified" on public.user_skills
   for insert to authenticated
   with check (
     user_id = auth.uid()
-    and exists (
-      select 1 from auth.users
-       where id = auth.uid()
-         and email_confirmed_at is not null
-    )
+    and public.email_is_confirmed(auth.uid())
   );
 
 -- ---------------------------------------------------------------------
--- 3) respond_to_request — müəllimin də verified olması tələb olunsun
---    (RPC içində yoxlama əlavə et)
+-- 3) respond_to_request — teacher must be verified as well
+--    (SECURITY DEFINER: auth.users oxunuşu owner hüququ ilə təhlükəsizdir)
 -- ---------------------------------------------------------------------
--- Qeyd: respond_to_request 02_security_functions.sql-dədir.
--- Bu miqrasiya onu overwrite edir və email_verified yoxlaması əlavə edir.
-
 create or replace function public.respond_to_request(p_request_id bigint, p_accept boolean)
 returns void
 language plpgsql
@@ -98,23 +108,7 @@ begin
 end;
 $function$;
 
--- İcazələri yenilə
 revoke execute on function public.respond_to_request(bigint, boolean) from public, anon;
 grant execute on function public.respond_to_request(bigint, boolean) to authenticated;
 
 commit;
-
--- =====================================================================
--- Test ssenariləri:
--- 1. Email təsdiqlənməyən istifadəçi lesson_request insert cəhdi → RLS reject
--- 2. Email təsdiqlənmiş istifadəçi → uğurlu insert
--- 3. Dayandırılmış istifadəçi → RLS reject
--- 4. Email təsdiqlənməyən müəllim respond_to_request çağırır → RPC xəta
--- =====================================================================
-
--- =====================================================================
--- Qeyd: Bu miqrasiya auth.users cədvəlinə SELECT hüququ tələb edir.
--- Supabase default olaraq auth.users-ə authenticated istifadəçilər üçün
--- SELECT icazəsi verir (yalnız öz məlumatlarını görürlər RLS vasitəsilə).
--- Əgər auth.users RLS policy-niz varsa, əmin olun ki subquery işləyir.
--- =====================================================================

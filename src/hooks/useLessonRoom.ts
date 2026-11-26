@@ -204,7 +204,12 @@ export function useLessonRoom(requestId: number | null): UseLessonRoomResult {
       p_request_id: requestId,
     })
     if (!timingErr && data) {
-      setTiming(data as LessonTiming)
+      // PostgREST set-returning RPC massiv qaytarır — tək sətri çıxarırıq
+      // (əks halda timing.remaining_seconds undefined → NaN taymer)
+      const row = Array.isArray(data) ? data[0] : (data as LessonTiming)
+      if (row) {
+        setTiming(row as LessonTiming)
+      }
     }
   }, [requestId])
 
