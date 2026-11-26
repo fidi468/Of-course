@@ -1,5 +1,5 @@
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 import MainLayout from './layouts/MainLayout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -11,7 +11,7 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Lessons from './pages/Lessons'
-import Credits from './pages/Credits'
+import Wallet from './pages/Wallet'
 import Skills from './pages/Skills'
 import Requests from './pages/Requests'
 import Sessions from './pages/Sessions'
@@ -47,7 +47,9 @@ function App() {
           {/* Yalnız giriş etmiş istifadəçilər */}
           <Route element={<ProtectedRoute />}>
             <Route path="/lessons" element={<Lessons />} />
-            <Route path="/credits" element={<Credits />} />
+            <Route path="/wallet" element={<Wallet />} />
+            {/* Köhnə /credits ünvanı — uyğunluq üçün Pulqabı səhifəsinə yönləndirilir */}
+            <Route path="/credits" element={<Navigate to="/wallet" replace />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/sessions" element={<Sessions />} />

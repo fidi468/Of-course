@@ -6,6 +6,10 @@ import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
 import { authErrorKey } from '../lib/authErrors'
 import { fileToAvatarDataUrl } from '../lib/avatarImage'
+import SkillModals, {
+  type SkillData,
+  type SkillProposal,
+} from '../components/SkillModals'
 
 type ProfileRow = {
   full_name: string
@@ -186,12 +190,8 @@ function Profile() {
   // modalın açıqlığı URL-dən törəmiş (derived) halda hesablanır
   const addParam = searchParams.get('add') === '1'
   const addModalOpen = addModal || addParam
+  // SkillModals-ın başlanğıc rejimi — profilin aktiv tab-ı ilə açılır
   const [addType, setAddType] = useState<SkillType>('teach')
-  const [addSkillId, setAddSkillId] = useState('')
-  const [addLevel, setAddLevel] = useState('beginner')
-  const [addDescription, setAddDescription] = useState('')
-  const [addSaving, setAddSaving] = useState(false)
-  const [addError, setAddError] = useState('')
 
   const [pwdModal, setPwdModal] = useState(false)
   const [oldPassword, setOldPassword] = useState('')
@@ -292,7 +292,7 @@ function Profile() {
       if (ignore) return
 
       if (error) {
-        setAddError(error.message)
+        setPageError(error.message)
         return
       }
 
@@ -363,19 +363,14 @@ function Profile() {
   }
 
   function openAddModal(type: SkillType) {
-    setAddModal(true)
     setAddType(type)
-    setAddError('')
-    setAddSkillId('')
-    setAddLevel('beginner')
-    setAddDescription('')
+    setAddModal(true)
   }
 
   function closeAllSkillModals() {
     setEditSkill(null)
     setAddModal(false)
     setSkillError('')
-    setAddError('')
 
     if (addParam) {
       setSearchParams({}, { replace: true })
@@ -456,42 +451,61 @@ function Profile() {
     }
   }
 
-  async function handleAddSkill(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  // SkillModals-dan gələn məlumatı user_skills-ə yazır.
+  // Uğur → modal özü bağlanır (SkillData resolve); xəta → modal göstərir
+  async function handleAddSkill(data: SkillData) {
+    if (!user) throw new Error(t('errors.generic'))
 
-    if (!user || !addSkillId) return
+    const base = {
+      user_id: user.id,
+      skill_id: data.skillId,
+      type: data.mode,
+      level: data.level,
+      description: data.description.trim() || null,
+    }
 
-    setAddSaving(true)
-    setAddError('')
+    // experience sütunu 18_skill_proposals.sql ilə əlavə olundu;
+    // hələ tətbiq olunmamış bazada xəta yaransın, o halda sütunsuz yoxlanır
+    const { error } = await supabase
+      .from('user_skills')
+      .insert({ ...base, experience: data.experience })
 
-    try {
-      const { error } = await supabase.from('user_skills').insert({
-        user_id: user.id,
-        skill_id: Number(addSkillId),
-        type: addType,
-        level: addLevel,
-        description: addDescription.trim() || null,
-      })
+    if (error) {
+      if (error.message.includes('experience')) {
+        const retry = await supabase.from('user_skills').insert(base)
 
-      if (error) {
-        setAddError(error.message)
-        return
+        if (retry.error) {
+          throw new Error(retry.error.message)
+        }
+      } else {
+        throw new Error(error.message)
       }
+    }
 
-      setActiveTab(addType)
-      setAddModal(false)
+    setActiveTab(data.mode)
+    setAddModal(false)
 
-      if (addParam) {
-        setSearchParams({}, { replace: true })
-      }
+    if (addParam) {
+      setSearchParams({}, { replace: true })
+    }
 
-      await reloadSkills()
-    } catch (err: unknown) {
-      setAddError(
-        err instanceof Error ? err.message : t('profile.unexpected')
-      )
-    } finally {
-      setAddSaving(false)
+    await reloadSkills()
+  }
+
+  // Siyahıda olmayan bacarıq üçün admin təsdiqinə təklif göndərir
+  // (skill_proposals cədvəli — 18_skill_proposals.sql, RLS: yalnız öz adına)
+  async function handleProposeSkill(data: SkillProposal) {
+    if (!user) throw new Error(t('errors.generic'))
+
+    const { error } = await supabase.from('skill_proposals').insert({
+      proposed_by: user.id,
+      name: data.name,
+      category: data.category,
+      description: data.description.trim() || null,
+    })
+
+    if (error) {
+      throw new Error(error.message)
     }
   }
 
@@ -1233,123 +1247,17 @@ function Profile() {
           </div>
         )}
 
-        {/* ADD SKILL MODAL */}
+        {/* ADD SKILL MODAL — SkillModals komponenti (URL ?add=1 dəstəyi ilə).
+            Şərti mount: hər açılışda bütün sahələr təzə başlayır */}
         {addModalOpen && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#29243A]/45 px-4 py-6 backdrop-blur-sm"
-            onClick={() => !addSaving && closeAllSkillModals()}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="add-skill-title"
-              onClick={e => e.stopPropagation()}
-              className="relative my-auto w-full max-w-md rounded-3xl border border-[#F1ECFF] bg-white p-6 shadow-2xl"
-            >
-              <h2
-                id="add-skill-title"
-                className="text-xl font-bold text-[#29243A]"
-              >
-                {t('profile.addSkillTitle')}
-              </h2>
-
-              <p className="mt-1 text-xs text-[#89859A]">
-                {t('profile.addSkillSubtitle')}
-              </p>
-
-              <form onSubmit={handleAddSkill} className="mt-4 space-y-4">
-                <div>
-                  <label htmlFor="as-type" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                    {t('profile.typeLabel')}
-                  </label>
-                  <select
-                    id="as-type"
-                    value={addType}
-                    onChange={e => setAddType(e.target.value as SkillType)}
-                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                  >
-                    <option value="teach">{t('profile.typeTeach')}</option>
-                    <option value="learn">{t('profile.typeLearn')}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="as-skill" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                    {t('profile.skill')}
-                  </label>
-                  <select
-                    id="as-skill"
-                    value={addSkillId}
-                    onChange={e => setAddSkillId(e.target.value)}
-                    required
-                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                  >
-                    <option value="">{t('profile.chooseSkill')}</option>
-                    {catalog.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.category})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="as-level" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                    {t('profile.yourLevel')}
-                  </label>
-                  <select
-                    id="as-level"
-                    value={addLevel}
-                    onChange={e => setAddLevel(e.target.value)}
-                    className="w-full rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                  >
-                    <option value="beginner">{t('profile.levelBeginner')}</option>
-                    <option value="intermediate">{t('profile.levelIntermediate')}</option>
-                    <option value="advanced">{t('profile.levelAdvanced')}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="as-desc" className="mb-1 block text-xs font-semibold text-[#29243A]">
-                    {t('profile.descriptionOptional')}
-                  </label>
-                  <textarea
-                    id="as-desc"
-                    value={addDescription}
-                    onChange={e => setAddDescription(e.target.value)}
-                    rows={3}
-                    maxLength={300}
-                    placeholder={t('profile.descHint')}
-                    className="w-full resize-none rounded-xl border border-purple-100 px-3 py-2.5 text-sm text-[#29243A] outline-none focus:border-purple-400"
-                  />
-                </div>
-
-                {addError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
-                    {addError}
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={closeAllSkillModals}
-                    disabled={addSaving}
-                    className="flex-1 rounded-xl bg-purple-100 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200 disabled:opacity-60"
-                  >
-                    {t('profile.cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={addSaving || !addSkillId}
-                    className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
-                  >
-                    {addSaving ? t('profile.adding') : t('profile.add')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <SkillModals
+            open
+            onClose={closeAllSkillModals}
+            initialMode={addType}
+            catalog={catalog}
+            onSaveSkill={handleAddSkill}
+            onProposeSkill={handleProposeSkill}
+          />
         )}
 
         {/* CHANGE PASSWORD MODAL — köhnə şifrə yoxlaması ilə */}

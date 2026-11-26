@@ -26,7 +26,7 @@ export default function Navbar() {
     { path: '/skills', label: t('nav.skills') },
     { path: '/requests', label: t('nav.requests') },
     { path: '/sessions', label: t('nav.sessions') },
-    { path: '/credits', label: t('nav.wallet') },
+    { path: '/wallet', label: t('nav.wallet') },
   ]
 
   return (
@@ -96,7 +96,7 @@ export default function Navbar() {
 
               {/* Credit balance */}
               <Link
-                to="/credits"
+                to="/wallet"
                 className="bg-[#b8f5c2] text-[#166534] rounded-full px-2 sm:px-3 py-1.5 hover:brightness-95 transition"
               >
                 <span className="text-[8px] sm:text-[10px] font-bold whitespace-nowrap">
