@@ -120,6 +120,10 @@ begin
   end if;
 
   -- c) Sorğu qəbul edilməyibsə otaq yoxdur
+  --    (tamamlanan/ləğv edilən dərs üçün ayrı, anlaşılan mesaj)
+  if r.status = 'completed' then
+    raise exception 'Dərs artıq tamamlanıb';
+  end if;
   if r.status <> 'accepted' then
     raise exception 'Dərs hələ qəbul edilməyib';
   end if;

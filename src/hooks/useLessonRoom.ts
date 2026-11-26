@@ -131,7 +131,7 @@ async function ensureRoom(
 
     if (!rpcMissing) {
       // RPC işlədi amma rədd etdi — funksiyanın lokal mesajları i18n-ə map olunur
-      if (msg.includes('qəbul edilməyib')) {
+      if (msg.includes('qəbul edilməyib') || msg.includes('artıq tamamlanıb')) {
         return { roomName: null, errKey: 'liveLesson.notAcceptedTitle' }
       }
       return { roomName: null, errKey: 'liveLesson.roomError' }
