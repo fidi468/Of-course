@@ -148,6 +148,14 @@ export default function Admin() {
         </div>
       )}
 
+      {/* Pending Review Lessons section — admin manual yoxlama */}
+      <section className="mt-8">
+        <h2 className="text-lg font-bold text-[#281078]">
+          {t('admin.pendingReviewTitle')}
+        </h2>
+        <PendingReviewSection t={t} />
+      </section>
+
       {/* Reports section */}
       <section className="mt-8">
         <h2 className="text-lg font-bold text-[#281078]">
@@ -300,5 +308,126 @@ export default function Admin() {
         )}
       </section>
     </main>
+  )
+}
+
+// =====================================================================
+// PendingReviewSection — pending_review statuslu dərslərin admin paneli
+// Migration 15-dəki get_pending_review_lessons və resolve_pending_lesson
+// RPC-lərini istifadə edir.
+// =====================================================================
+
+type PendingReviewLesson = {
+  lesson_request_id: number
+  teacher_name: string
+  student_name: string
+  skill_name: string
+  duration_hours: number
+  lesson_started_at: string
+  teacher_attendance_pct: number
+  student_attendance_pct: number
+  blocking_reason: string
+}
+
+function PendingReviewSection({ t }: { t: (key: string) => string }) {
+  const [lessons, setLessons] = useState<PendingReviewLesson[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadLessons() {
+      const { data, error: err } = await supabase.rpc('get_pending_review_lessons')
+      if (cancelled) return
+      if (err) {
+        setError(err.message)
+      } else {
+        setLessons((data ?? []) as PendingReviewLesson[])
+      }
+      setLoading(false)
+    }
+
+    void loadLessons()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleResolve(lessonId: number, action: 'complete' | 'cancel') {
+    setActionLoading(lessonId)
+    const { error: err } = await supabase.rpc('resolve_pending_lesson', {
+      p_request_id: lessonId,
+      p_action: action,
+      p_note: null,
+    })
+    if (err) {
+      setError(err.message)
+    } else {
+      // Reload after resolve
+      const { data } = await supabase.rpc('get_pending_review_lessons')
+      setLessons((data ?? []) as PendingReviewLesson[])
+    }
+    setActionLoading(null)
+  }
+
+  if (loading) return <p className="mt-3 text-sm text-[#8065a8]">{t('common.loading')}</p>
+  if (error) return <p className="mt-3 text-sm text-red-600">{error}</p>
+  if (lessons.length === 0)
+    return <p className="mt-3 text-sm text-[#8065a8]">{t('admin.noPendingReview')}</p>
+
+  return (
+    <div className="mt-3 space-y-3">
+      {lessons.map((lesson) => (
+        <article
+          key={lesson.lesson_request_id}
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#281078]">
+                {lesson.skill_name} — {lesson.duration_hours}h
+              </h3>
+              <p className="mt-1 text-xs text-[#604c85]">
+                {t('admin.teacher')}: {lesson.teacher_name} ·{' '}
+                {t('admin.student')}: {lesson.student_name}
+              </p>
+              <p className="mt-1 text-[10px] text-[#a18bb8]">
+                {new Date(lesson.lesson_started_at).toLocaleString()}
+              </p>
+              <div className="mt-2 flex gap-4 text-[10px]">
+                <span className="text-[#8065a8]">
+                  {t('admin.teacherAttendance')}: {lesson.teacher_attendance_pct}%
+                </span>
+                <span className="text-[#8065a8]">
+                  {t('admin.studentAttendance')}: {lesson.student_attendance_pct}%
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] font-semibold text-red-600">
+                {t('admin.blockingReason')}: {lesson.blocking_reason}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                disabled={actionLoading === lesson.lesson_request_id}
+                onClick={() => handleResolve(lesson.lesson_request_id, 'complete')}
+                className="rounded-lg bg-green-600 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {t('admin.approveCredit')}
+              </button>
+              <button
+                disabled={actionLoading === lesson.lesson_request_id}
+                onClick={() => handleResolve(lesson.lesson_request_id, 'cancel')}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                {t('admin.cancelLesson')}
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }

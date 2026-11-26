@@ -387,7 +387,11 @@
     "roomError": "Oda oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
     "leaveRoom": "Odanı terk et",
     "completed": "Ders tamamlandı",
-    "completedMsg": "Ders başarıyla tamamlandı! Krediler aktarıldı."
+    "completedMsg": "Ders başarıyla tamamlandı! Krediler aktarıldı.",
+    "accessDeniedHelp": "Bu derse yalnızca öğrenci ve öğretmen erişebilir. Bu sizin dersinizse, öğretmenin isteği kabul ettiğinden emin olun.",
+    "waitingForServer": "Ders süresi tamamlandı — sunucu kredi transferini doğruluyor...",
+    "pendingReview": "Ders admin incelemesine gönderildi (devam/kredi sorunu).",
+    "serverTimeout": "Sunucu yanıtı gecikiyor — kısa süre sonra yenileyin."
   },
   "admin": {
     "title": "Admin Panel",
@@ -412,6 +416,15 @@
     "suspendedSuccess": "Kullanıcı askıya alındı",
     "unsuspendedSuccess": "Kullanıcı geri alındı",
     "verifiedSuccess": "Kullanıcı doğrulandı",
-    "resolvedSuccess": "Şikayet çözüldü"
+    "resolvedSuccess": "Şikayet çözüldü",
+    "pendingReviewTitle": "İnceleme bekleyen dersler",
+    "noPendingReview": "İnceleme bekleyen ders yok",
+    "teacher": "Öğretmen",
+    "student": "Öğrenci",
+    "teacherAttendance": "Öğretmen devamlılığı",
+    "studentAttendance": "Öğrenci devamlılığı",
+    "blockingReason": "Engelleme sebebi",
+    "approveCredit": "Krediyi onayla",
+    "cancelLesson": "Dersi iptal et"
   }
 }

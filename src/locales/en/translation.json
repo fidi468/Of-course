@@ -387,7 +387,11 @@
     "roomError": "Could not create the room. Please try again later.",
     "leaveRoom": "Leave room",
     "completed": "Lesson completed",
-    "completedMsg": "Lesson completed successfully! Credits transferred."
+    "completedMsg": "Lesson completed successfully! Credits transferred.",
+    "accessDeniedHelp": "Only the student and teacher assigned to this lesson can access the room. If this is your lesson, make sure the teacher has accepted the request.",
+    "waitingForServer": "Lesson duration complete — server is verifying credit transfer...",
+    "pendingReview": "Lesson sent to admin review (attendance/credit issue).",
+    "serverTimeout": "Server response delayed — please refresh shortly."
   },
   "admin": {
     "title": "Admin Panel",
@@ -412,6 +416,15 @@
     "suspendedSuccess": "User suspended",
     "unsuspendedSuccess": "User unsuspended",
     "verifiedSuccess": "User verified",
-    "resolvedSuccess": "Report resolved"
+    "resolvedSuccess": "Report resolved",
+    "pendingReviewTitle": "Lessons pending review",
+    "noPendingReview": "No lessons pending review",
+    "teacher": "Teacher",
+    "student": "Student",
+    "teacherAttendance": "Teacher attendance",
+    "studentAttendance": "Student attendance",
+    "blockingReason": "Blocking reason",
+    "approveCredit": "Approve credit",
+    "cancelLesson": "Cancel lesson"
   }
 }

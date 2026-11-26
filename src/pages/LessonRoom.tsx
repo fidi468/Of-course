@@ -97,6 +97,35 @@ export default function LessonRoom() {
     }
   }, [roomName, isParticipant, lessonRequest, parsedRequestId, refreshTiming])
 
+  // İştirakçı otağı tərk edəndə mark_left çağır (attendance tracking)
+  useEffect(() => {
+    if (!roomName || !isParticipant) return
+
+    const handleLeave = () => {
+      void supabase.rpc('mark_left', { p_request_id: parsedRequestId })
+    }
+
+    // Səhifə bağlananda / navigate edəndə mark_left çağır
+    window.addEventListener('beforeunload', handleLeave)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleLeave)
+      handleLeave()
+    }
+  }, [roomName, isParticipant, parsedRequestId])
+
+  // Heartbeat — hər 30 saniyə serverə siqnal göndər
+  // Bu, attendance tracking üçün etibarlı metod (beforeunload yalnız fallback)
+  useEffect(() => {
+    if (!roomName || !isParticipant || lessonRequest?.status !== 'accepted') return
+
+    const interval = setInterval(() => {
+      void supabase.rpc('heartbeat', { p_request_id: parsedRequestId })
+    }, 30000) // 30 saniyə
+
+    return () => clearInterval(interval)
+  }, [roomName, isParticipant, lessonRequest, parsedRequestId])
+
   // Countdown timer — hər saniyə yenilə
   useEffect(() => {
     if (remainingSeconds === null || remainingSeconds <= 0) return
@@ -106,7 +135,10 @@ export default function LessonRoom() {
     return () => clearInterval(interval)
   }, [remainingSeconds])
 
-  // Vaxt bitəndə avtomatik complete_lesson çağır
+  // Vaxt bitəndə — server tərəfindən tamamlanma gözlənilir
+  // CRITICAL: complete_lesson RPC artıq authenticated-a bağlıdır (migration 15).
+  // Kredit köçürülməsi yalnız pg_cron (auto_complete_expired_lessons) tərəfindən baş verir.
+  // Frontend yalnız status göstərir — kreditə qərar vermir.
   useEffect(() => {
     if (remainingSeconds !== 0 || lessonRequest?.status !== 'accepted' || completing) {
       return
@@ -114,27 +146,44 @@ export default function LessonRoom() {
 
     let cancelled = false
 
-    async function finish() {
+    async function waitForServerCompletion() {
       setCompleting(true)
-      const { error: completeErr } = await supabase.rpc('complete_lesson', {
-        p_request_id: parsedRequestId,
-      })
-      if (cancelled) return
-      if (completeErr) {
-        setCompleteMessage(completeErr.message)
-      } else {
-        setCompleteMessage(t('liveLesson.completedMsg'))
+      setCompleteMessage(t('liveLesson.waitingForServer'))
+
+      // Server tərəfindən tamamlanmanı gözlə (cron hər dəqiqə işləyir)
+      // 5 dəqiqə ərzində hər 30 saniyə timing-i yenilə
+      for (let i = 0; i < 10; i++) {
+        if (cancelled) return
+        await new Promise(resolve => setTimeout(resolve, 30000))
+        if (cancelled) return
+        await refreshTiming()
+        if (cancelled) return
+        // Əgər status dəyişibsə (completed/pending_review) — mesajı yenilə
+        if (timing?.status === 'completed') {
+          setCompleteMessage(t('liveLesson.completedMsg'))
+          setCompleting(false)
+          return
+        }
+        if (timing?.status === 'pending_review') {
+          setCompleteMessage(t('liveLesson.pendingReview'))
+          setCompleting(false)
+          return
+        }
       }
-      setCompleting(false)
-      await refreshTiming()
+
+      // 5 dəqiqə sonra hələ də gözləyirsə — timeout mesajı
+      if (!cancelled) {
+        setCompleteMessage(t('liveLesson.serverTimeout'))
+        setCompleting(false)
+      }
     }
 
-    void finish()
+    void waitForServerCompletion()
 
     return () => {
       cancelled = true
     }
-  }, [remainingSeconds, lessonRequest, completing, parsedRequestId, refreshTiming, t])
+  }, [remainingSeconds, lessonRequest, completing, parsedRequestId, refreshTiming, timing, t])
 
   if (loading) {
     return (
@@ -148,6 +197,16 @@ export default function LessonRoom() {
   }
 
   if (error || !isParticipant || !lessonRequest) {
+    // Log unauthorized access attempt
+    if (lessonRequest && !isParticipant) {
+      void supabase.rpc('log_security_event', {
+        p_event_type: 'unauthorized_room_access',
+        p_resource_type: 'lesson_room',
+        p_resource_id: String(parsedRequestId),
+        p_severity: 'warning',
+      })
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf9ff] p-6">
         <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
@@ -161,6 +220,9 @@ export default function LessonRoom() {
           </h1>
           <p className="mt-2 text-sm text-[#60477f]">
             {error ?? t('liveLesson.accessDeniedMsg')}
+          </p>
+          <p className="mt-3 text-xs text-[#a18bb8]">
+            {t('liveLesson.accessDeniedHelp')}
           </p>
           <button
             onClick={() => navigate('/sessions', { replace: true })}

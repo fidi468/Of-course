@@ -387,7 +387,11 @@
     "roomError": "Otaq yaradıla bilmədi. Bir az sonra yenidən cəhd edin.",
     "leaveRoom": "Otağı tərk et",
     "completed": "Dərs tamamlandı",
-    "completedMsg": "Dərs uğurla tamamlandı! Kreditlər köçürüldü."
+    "completedMsg": "Dərs uğurla tamamlandı! Kreditlər köçürüldü.",
+    "accessDeniedHelp": "Dərs otağına yalnız tələbə və müəllim daxil ola bilər. Əgər bu sizin dərsinizdirsə, müəllimin sorğunu qəbul etdiyindən əmin olun.",
+    "waitingForServer": "Dərs müddəti tamamlandı — server kredit köçürməsini yoxlayır...",
+    "pendingReview": "Dərs tamamlanma üçün admin yoxlamasına göndərildi (davamiyyət/kredit).",
+    "serverTimeout": "Server cavabı gecikir — bir az sonra yeniləyin."
   },
   "admin": {
     "title": "Admin Panel",
@@ -412,6 +416,15 @@
     "suspendedSuccess": "İstifadəçi dayandırıldı",
     "unsuspendedSuccess": "İstifadəçi bərpa edildi",
     "verifiedSuccess": "İstifadəçi təsdiqləndi",
-    "resolvedSuccess": "Şikayət həll edildi"
+    "resolvedSuccess": "Şikayət həll edildi",
+    "pendingReviewTitle": "Yoxlama gözləyən dərslər",
+    "noPendingReview": "Yoxlama gözləyən dərs yoxdur",
+    "teacher": "Müəllim",
+    "student": "Tələbə",
+    "teacherAttendance": "Müəllim davamiyyəti",
+    "studentAttendance": "Tələbə davamiyyəti",
+    "blockingReason": "Bloklayan səbəb",
+    "approveCredit": "Krediti təsdiqlə",
+    "cancelLesson": "Dərsi ləğv et"
   }
 }

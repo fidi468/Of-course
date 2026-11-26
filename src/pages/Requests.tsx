@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { useTranslation } from 'react-i18next'
@@ -235,38 +236,11 @@ function Requests() {
     }
   }
 
-  async function handleComplete(requestId: number) {
-    if (processingId !== null) return
-
-    const confirmed = window.confirm(t('requests.confirmComplete'))
-
-    if (!confirmed) return
-
-    setProcessingId(requestId)
-    setActionError('')
-    setSuccessMessage('')
-
-    try {
-      const { error } = await supabase.rpc('complete_lesson', {
-        p_request_id: requestId,
-      })
-
-      if (error) {
-        setActionError(error.message)
-      } else {
-        setSuccessMessage(t('requests.completedMsg'))
-        await loadRequests()
-      }
-    } catch (err: unknown) {
-      setActionError(
-        err instanceof Error
-          ? err.message
-          : t('requests.unexpected')
-      )
-    } finally {
-      setProcessingId(null)
-    }
-  }
+  // NOTE: Manual "Complete Lesson" button intentionally removed.
+  // Lesson completion is now fully automatic via server-side pg_cron job
+  // (auto_complete_expired_lessons RPC in migration 10).
+  // Credits are transferred only after the full lesson duration has elapsed,
+  // never by manual user action. See SECURITY-AUDIT-REPORT.md for details.
 
   function formatDate(value: string | null) {
     if (!value) return t('requests.dateNotSet')
@@ -530,15 +504,12 @@ function Requests() {
                       )}
 
                       {activeTab === 'incoming' && isAccepted && (
-                        <button
-                          disabled={processingId !== null}
-                          onClick={() => handleComplete(request.id)}
-                          className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                        <Link
+                          to={`/lessons/${request.id}/room`}
+                          className="flex-1 rounded-xl bg-[#861bd2] px-4 py-3 text-center text-xs font-semibold text-white transition hover:bg-[#7015b5] disabled:opacity-50"
                         >
-                          {isProcessing
-                            ? t('requests.wait')
-                            : t('requests.complete')}
-                        </button>
+                          {t('liveLesson.join')}
+                        </Link>
                       )}
 
                       {(isPending || isAccepted) && (
