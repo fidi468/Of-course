@@ -42,9 +42,9 @@ create table if not exists public.security_events (
   created_at      timestamptz not null default now()
 );
 
-create index if not exists on public.security_events (user_id, created_at desc);
-create index if not exists on public.security_events (event_type, created_at desc);
-create index if not exists on public.security_events (severity, created_at desc);
+create index if not exists security_events_user_created_idx on public.security_events (user_id, created_at desc);
+create index if not exists security_events_event_created_idx on public.security_events (event_type, created_at desc);
+create index if not exists security_events_severity_created_idx on public.security_events (severity, created_at desc);
 
 -- ---------------------------------------------------------------------
 -- 2) RLS — admin see all, users see own events

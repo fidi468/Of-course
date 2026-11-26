@@ -52,9 +52,9 @@ create table if not exists public.user_reports (
   check (reporter_id <> reported_id)
 );
 
-create index if not exists on public.user_reports (reported_id, status);
-create index if not exists on public.user_reports (reporter_id);
-create index if not exists on public.user_reports (status, created_at desc);
+create index if not exists user_reports_reported_status_idx on public.user_reports (reported_id, status);
+create index if not exists user_reports_reporter_idx on public.user_reports (reporter_id);
+create index if not exists user_reports_status_created_idx on public.user_reports (status, created_at desc);
 
 -- ---------------------------------------------------------------------
 -- 3) rate_limit_log cədvəli (rate limiting üçün)
@@ -68,7 +68,7 @@ create table if not exists public.rate_limit_log (
   created_at  timestamptz not null default now()
 );
 
-create index if not exists on public.rate_limit_log (user_id, action, created_at desc);
+create index if not exists rate_limit_log_user_action_idx on public.rate_limit_log (user_id, action, created_at desc);
 
 -- ---------------------------------------------------------------------
 -- 4) RLS aktivləşdir

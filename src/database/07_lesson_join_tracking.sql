@@ -70,10 +70,12 @@ begin
     update public.lesson_rooms
        set teacher_joined_at = now()
      where id = room.id;
+    room.teacher_joined_at := now();  -- köhnə dəyişən deyil, təzə dəyər istifadə olunmalıdır
   elsif not is_teacher and room.student_joined_at is null then
     update public.lesson_rooms
        set student_joined_at = now()
      where id = room.id;
+    room.student_joined_at := now();  -- köhnə dəyişən deyil, təzə dəyər istifadə olunmalıdır
   end if;
 
   -- 4) Əgər hər ikisi qoşulubsa və lesson_started_at hələ set deyilsə
@@ -85,10 +87,7 @@ begin
     -- İlk qoşulma vaxtını deyil, İKİNCİ qoşulma vaxtını götürürük
     -- (dərs yalnız hər ikisi olanda başlayır)
     update public.lesson_requests
-       set lesson_started_at = greatest(
-         coalesce(room.teacher_joined_at, now()),
-         coalesce(room.student_joined_at, now())
-       )
+       set lesson_started_at = greatest(room.teacher_joined_at, room.student_joined_at)
      where id = p_request_id;
   end if;
 end;

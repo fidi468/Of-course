@@ -391,7 +391,13 @@
     "accessDeniedHelp": "Bu derse yalnızca öğrenci ve öğretmen erişebilir. Bu sizin dersinizse, öğretmenin isteği kabul ettiğinden emin olun.",
     "waitingForServer": "Ders süresi tamamlandı — sunucu kredi transferini doğruluyor...",
     "pendingReview": "Ders admin incelemesine gönderildi (devam/kredi sorunu).",
-    "serverTimeout": "Sunucu yanıtı gecikiyor — kısa süre sonra yenileyin."
+    "serverTimeout": "Sunucu yanıtı gecikiyor — kısa süre sonra yenileyin.",
+    "serviceSetupTitle": "Ders odası servisi hazır değil",
+    "schemaMissing": "Video ders altyapısı henüz kurulmadı — gerekli veritabanı güncellemeleri (migration) uygulanmadı. Lütfen proje yöneticisiyle iletişime geçin.",
+    "schemaMissingHelp": "Bu sizin hesabınızla ilgili değil — yönetici güncellemeleri uyguladıktan sonra sayfayı yenileyin.",
+    "connecting": "Video odaya bağlanılıyor...",
+    "videoError": "Video bağlantı hatası",
+    "retry": "Tekrar dene"
   },
   "admin": {
     "title": "Admin Panel",

@@ -73,8 +73,10 @@ begin
   -- lesson_rooms joined_at yenilə (migration 07 logic)
   if is_teacher and room.teacher_joined_at is null then
     update public.lesson_rooms set teacher_joined_at = now() where id = room.id;
+    room.teacher_joined_at := now();  -- stale record düzəlişi: yenicə yazılan dəyəri əks etdir
   elsif not is_teacher and room.student_joined_at is null then
     update public.lesson_rooms set student_joined_at = now() where id = room.id;
+    room.student_joined_at := now();  -- stale record düzəlişi: yenicə yazılan dəyəri əks etdir
   end if;
 
   -- lesson_started_at set et (hər ikisi qoşulanda)
@@ -82,10 +84,7 @@ begin
      and room.student_joined_at is not null
      and r.lesson_started_at is null then
     update public.lesson_requests
-       set lesson_started_at = greatest(
-         coalesce(room.teacher_joined_at, now()),
-         coalesce(room.student_joined_at, now())
-       )
+       set lesson_started_at = greatest(room.teacher_joined_at, room.student_joined_at)
      where id = p_request_id;
   end if;
 

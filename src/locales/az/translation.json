@@ -391,7 +391,13 @@
     "accessDeniedHelp": "Dərs otağına yalnız tələbə və müəllim daxil ola bilər. Əgər bu sizin dərsinizdirsə, müəllimin sorğunu qəbul etdiyindən əmin olun.",
     "waitingForServer": "Dərs müddəti tamamlandı — server kredit köçürməsini yoxlayır...",
     "pendingReview": "Dərs tamamlanma üçün admin yoxlamasına göndərildi (davamiyyət/kredit).",
-    "serverTimeout": "Server cavabı gecikir — bir az sonra yeniləyin."
+    "serverTimeout": "Server cavabı gecikir — bir az sonra yeniləyin.",
+    "serviceSetupTitle": "Dərs otağı xidməti hazır deyil",
+    "schemaMissing": "Video dərs altyapısı hələ qurulmayıb — bazada lazımi yeniləmələr (migration) tətbiq edilməyib. Zəhmət olmasa layihə admini ilə əlaqə saxlayın.",
+    "schemaMissingHelp": "Bu sizin hesabınızla bağlı deyil — sistem idarəçisi yeniləmələri tətbiq etdikdən sonra səhifəni yeniləyin.",
+    "connecting": "Video otağa qoşulur...",
+    "videoError": "Video bağlantısı xətası",
+    "retry": "Yenidən cəhd et"
   },
   "admin": {
     "title": "Admin Panel",

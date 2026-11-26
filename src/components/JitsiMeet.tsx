@@ -12,9 +12,15 @@
  * - displayName authenticated istifadəçinin adıdır
  * - Jitsi serveri env var ilə konfiqurasiya olunur (default: meet.jit.si)
  * - JWT auth tələb olunmur (ictimai server); otaq adı proqnozlaşdırıla bilməz
+ *
+ * Performans:
+ * - Jitsi instance YALNIZ roomName dəyişəndə yaradılır/silinir. onLeave /
+ *   onError / displayName / avatarUrl ref-lərdə saxlanılır — LessonRoom-dakı
+ *   hər saniyəlik countdown re-render-ləri video bağlantısını KƏSMİR.
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 // Jitsi external_api global type (script yüklənəndə pəncərəyə əlavə olunur)
 declare global {
@@ -83,10 +89,20 @@ export default function JitsiMeet({
   onLeave,
   onError,
 }: JitsiMeetProps) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<JitsiApi | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
+
+  // Callback-lər ref-lərdə — identity dəyişsə də Jitsi yenidən başlatılmır
+  const onLeaveRef = useRef(onLeave)
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => {
+    onLeaveRef.current = onLeave
+    onErrorRef.current = onError
+  })
 
   useEffect(() => {
     let disposed = false
@@ -146,10 +162,10 @@ export default function JitsiMeet({
         apiRef.current = api
         setStatus('ready')
 
-        // Hadisə dinləyiciləri
+        // Hadisə dinləyiciləri — ref-lər vasitəsilə ən son callback çağırılır
         api.addEventListeners({
           videoConferenceLeft: () => {
-            if (!disposed && onLeave) onLeave()
+            if (!disposed) onLeaveRef.current?.()
           },
           participantLeft: () => {
             // başqa iştirakçı çıxdı — heç nə etməyə ehtiyac yox
@@ -160,7 +176,7 @@ export default function JitsiMeet({
         const msg = err instanceof Error ? err.message : 'Jitsi başlatıla bilmədi'
         setErrorMsg(msg)
         setStatus('error')
-        if (onError) onError(msg)
+        onErrorRef.current?.(msg)
       }
     }
 
@@ -177,7 +193,12 @@ export default function JitsiMeet({
         apiRef.current = null
       }
     }
-  }, [roomName, displayName, avatarUrl, onLeave, onError])
+    // displayName/avatarUrl/onLeave/onError qəsdən dep-lərdə deyil:
+    // video bağlantısı yalnız roomName dəyişəndə yenidən qurulmalıdır,
+    // əks halda hər saniyəlik countdown re-render-i zəngi kəsir.
+    // Ən son dəyərlər yuxarıdakı ref-lər vasitəsilə oxunur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomName])
 
   return (
     <div className="relative w-full h-full">
@@ -185,7 +206,7 @@ export default function JitsiMeet({
         <div className="absolute inset-0 flex items-center justify-center bg-[#fbf9ff] text-[#7022bd]">
           <div className="text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#ead8ff] border-t-[#7022bd]" />
-            <p className="mt-3 text-sm">Video otağa qoşulur...</p>
+            <p className="mt-3 text-sm">{t('liveLesson.connecting')}</p>
           </div>
         </div>
       )}
@@ -193,13 +214,13 @@ export default function JitsiMeet({
       {status === 'error' && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#fbf9ff] p-6">
           <div className="max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
-            <p className="text-sm font-semibold text-red-700">Video bağlantısı xətası</p>
+            <p className="text-sm font-semibold text-red-700">{t('liveLesson.videoError')}</p>
             <p className="mt-2 text-xs text-red-600">{errorMsg}</p>
             <button
               onClick={() => window.location.reload()}
               className="mt-4 rounded-full bg-red-600 px-5 py-2 text-xs font-semibold text-white hover:bg-red-700"
             >
-              Yenidən cəhd et
+              {t('liveLesson.retry')}
             </button>
           </div>
         </div>

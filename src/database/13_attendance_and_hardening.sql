@@ -25,8 +25,8 @@ create table if not exists public.lesson_attendance (
   unique (lesson_request_id, user_id, joined_at)
 );
 
-create index if not exists on public.lesson_attendance (lesson_request_id, user_id);
-create index if not exists on public.lesson_attendance (user_id);
+create index if not exists lesson_attendance_req_user_idx on public.lesson_attendance (lesson_request_id, user_id);
+create index if not exists lesson_attendance_user_idx on public.lesson_attendance (user_id);
 
 alter table public.lesson_attendance enable row level security;
 

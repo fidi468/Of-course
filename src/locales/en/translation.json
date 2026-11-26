@@ -391,7 +391,13 @@
     "accessDeniedHelp": "Only the student and teacher assigned to this lesson can access the room. If this is your lesson, make sure the teacher has accepted the request.",
     "waitingForServer": "Lesson duration complete — server is verifying credit transfer...",
     "pendingReview": "Lesson sent to admin review (attendance/credit issue).",
-    "serverTimeout": "Server response delayed — please refresh shortly."
+    "serverTimeout": "Server response delayed — please refresh shortly.",
+    "serviceSetupTitle": "Lesson room service is not ready",
+    "schemaMissing": "The video lesson infrastructure is not set up yet — required database updates (migrations) have not been applied. Please contact the project admin.",
+    "schemaMissingHelp": "This is not related to your account — once the administrator applies the updates, please refresh the page.",
+    "connecting": "Joining the video room...",
+    "videoError": "Video connection error",
+    "retry": "Try again"
   },
   "admin": {
     "title": "Admin Panel",

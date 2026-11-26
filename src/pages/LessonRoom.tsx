@@ -18,7 +18,7 @@
  */
 
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useLessonRoom } from '../hooks/useLessonRoom'
 import { useAuth } from '../hooks/useAuth'
@@ -40,8 +40,17 @@ export default function LessonRoom() {
   const { t } = useTranslation()
 
   const parsedRequestId = requestId ? Number(requestId) : null
-  const { loading, error, roomName, lessonRequest, isParticipant, timing, refreshTiming } =
+  const { loading, errorKey, roomName, lessonRequest, isParticipant, timing, refreshTiming } =
     useLessonRoom(parsedRequestId)
+
+  // Stabil callbacks — JitsiMeet-in hər re-renderdə yenidən başlatılmasının qarşısını alır
+  const handleBackToSessions = useCallback(
+    () => navigate('/sessions', { replace: true }),
+    [navigate]
+  )
+  const handleJitsiError = useCallback((msg: string) => {
+    console.error('Jitsi error:', msg)
+  }, [])
 
   // Countdown timer state — server vaxtına əsaslanır
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
@@ -196,7 +205,7 @@ export default function LessonRoom() {
     )
   }
 
-  if (error || !isParticipant || !lessonRequest) {
+  if (errorKey || !isParticipant || !lessonRequest) {
     // Log unauthorized access attempt
     if (lessonRequest && !isParticipant) {
       void supabase.rpc('log_security_event', {
@@ -207,6 +216,10 @@ export default function LessonRoom() {
       })
     }
 
+    // Bazada migration çatışmırsa — bu istifadəçinin günahı deyil,
+    // xəta kartını onunla uyğun göstər
+    const isSetupIssue = errorKey === 'liveLesson.schemaMissing'
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf9ff] p-6">
         <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
@@ -216,16 +229,18 @@ export default function LessonRoom() {
             </svg>
           </div>
           <h1 className="mt-4 text-lg font-bold text-[#281078]">
-            {t('liveLesson.accessDenied')}
+            {isSetupIssue ? t('liveLesson.serviceSetupTitle') : t('liveLesson.accessDenied')}
           </h1>
           <p className="mt-2 text-sm text-[#60477f]">
-            {error ?? t('liveLesson.accessDeniedMsg')}
+            {errorKey ? t(errorKey) : t('liveLesson.accessDeniedMsg')}
           </p>
           <p className="mt-3 text-xs text-[#a18bb8]">
-            {t('liveLesson.accessDeniedHelp')}
+            {isSetupIssue
+              ? t('liveLesson.schemaMissingHelp')
+              : t('liveLesson.accessDeniedHelp')}
           </p>
           <button
-            onClick={() => navigate('/sessions', { replace: true })}
+            onClick={handleBackToSessions}
             className="mt-6 rounded-full bg-[#7022bd] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5d1ba0]"
           >
             {t('liveLesson.backToSessions')}
@@ -248,7 +263,7 @@ export default function LessonRoom() {
             {t('liveLesson.notAcceptedMsg')}
           </p>
           <button
-            onClick={() => navigate('/sessions', { replace: true })}
+            onClick={handleBackToSessions}
             className="mt-6 rounded-full bg-[#7022bd] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5d1ba0]"
           >
             {t('liveLesson.backToSessions')}
@@ -264,7 +279,7 @@ export default function LessonRoom() {
         <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
           <p className="text-sm text-[#60477f]">{t('liveLesson.roomError')}</p>
           <button
-            onClick={() => navigate('/sessions', { replace: true })}
+            onClick={handleBackToSessions}
             className="mt-6 rounded-full bg-[#7022bd] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5d1ba0]"
           >
             {t('liveLesson.backToSessions')}
@@ -313,7 +328,7 @@ export default function LessonRoom() {
           )}
 
           <button
-            onClick={() => navigate('/sessions', { replace: true })}
+            onClick={handleBackToSessions}
             className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
           >
             ← {t('liveLesson.leaveRoom')}
@@ -327,8 +342,8 @@ export default function LessonRoom() {
           roomName={roomName}
           displayName={displayName}
           avatarUrl={avatarUrl}
-          onLeave={() => navigate('/sessions', { replace: true })}
-          onError={(msg) => console.error('Jitsi error:', msg)}
+          onLeave={handleBackToSessions}
+          onError={handleJitsiError}
         />
       </div>
     </div>
