@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Of Course</title>
+  </head>
+  <body>
+    <script>
+      // Render statik hosting üçün SPA deep-link fallback:
+      // birbaşa açılan keçidlər (/admin, /login, /skills ...) buraya düşür.
+      // İstifadəçinin istədiyi ünvanı yadda saxlayıb əsas tətbiqə ötürürük.
+      try {
+        var dest = location.pathname + location.search + location.hash
+        if (dest && dest !== '/' && dest.indexOf('/assets/') !== 0) {
+          sessionStorage.setItem('ofcourse-spa-dest', dest)
+        }
+      } catch (e) {}
+      location.replace('/')
+    </script>
+    <noscript>Səhifəni yükləmək üçün JavaScript-i aktiv edin.</noscript>
+  </body>
+</html>
