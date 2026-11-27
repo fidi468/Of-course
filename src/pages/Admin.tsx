@@ -156,6 +156,14 @@ export default function Admin() {
         <PendingReviewSection t={t} />
       </section>
 
+      {/* Skill proposals — istifadəçi təklifləri (migration 18/19) */}
+      <section className="mt-8">
+        <h2 className="text-lg font-bold text-[#281078]">
+          {t('admin.proposalsTitle')}
+        </h2>
+        <SkillProposalsSection t={t} />
+      </section>
+
       {/* Reports section */}
       <section className="mt-8">
         <h2 className="text-lg font-bold text-[#281078]">
@@ -308,6 +316,151 @@ export default function Admin() {
         )}
       </section>
     </main>
+  )
+}
+
+// =====================================================================
+// SkillProposalsSection — istifadəçilərin göndərdiyi bacarıq təklifləri
+// skill_proposals cədvəli (migration 18) + respond_skill_proposal RPC
+// (migration 19). RLS: admin bütün təklifləri görür; status yalnız
+// SECURITY DEFINER RPC ilə dəyişir — təsdiq olunan bacarıq skills-
+// cədvəlinə düşür, hər iki tərəfə bildiriş gedir.
+// =====================================================================
+
+type SkillProposal = {
+  id: number
+  name: string
+  category: string
+  description: string | null
+  status: string
+  created_at: string
+  proposer?: { full_name: string | null } | null
+}
+
+function SkillProposalsSection({ t }: { t: (key: string) => string }) {
+  const [proposals, setProposals] = useState<SkillProposal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProposals() {
+      const { data, error: err } = await supabase
+        .from('skill_proposals')
+        .select(
+          `id,
+           name,
+           category,
+           description,
+           status,
+           created_at,
+           proposer:profiles!skill_proposals_proposed_by_fkey ( full_name )`
+        )
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+
+      if (cancelled) return
+      if (err) {
+        setError(err.message)
+      } else {
+        setProposals((data ?? []) as unknown as SkillProposal[])
+      }
+      setLoading(false)
+    }
+
+    void loadProposals()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleRespond(id: number, decision: 'approved' | 'rejected') {
+    setActionLoading(id)
+    setError('')
+
+    const { error: err } = await supabase.rpc('respond_skill_proposal', {
+      p_proposal_id: id,
+      p_decision: decision,
+    })
+
+    if (err) {
+      setError(err.message)
+    } else {
+      // Siyahını yenilə — qəbul/red olunan təklif siyahıdan çıxır
+      const { data, error: reloadErr } = await supabase
+        .from('skill_proposals')
+        .select(
+          `id,
+           name,
+           category,
+           description,
+           status,
+           created_at,
+           proposer:profiles!skill_proposals_proposed_by_fkey ( full_name )`
+        )
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+
+      if (reloadErr) {
+        setError(reloadErr.message)
+      } else {
+        setProposals((data ?? []) as unknown as SkillProposal[])
+      }
+    }
+    setActionLoading(null)
+  }
+
+  if (loading) return <p className="mt-3 text-sm text-[#8065a8]">{t('common.loading')}</p>
+  if (error) return <p className="mt-3 text-sm text-red-600">{error}</p>
+  if (proposals.length === 0)
+    return <p className="mt-3 text-sm text-[#8065a8]">{t('admin.noProposals')}</p>
+
+  return (
+    <div className="mt-3 space-y-3">
+      {proposals.map((proposal) => (
+        <article
+          key={proposal.id}
+          className="rounded-xl border border-[#ead0f6] bg-white p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#281078]">
+                {proposal.name}
+                <span className="ml-2 rounded-full bg-[#f4e1fb] px-2.5 py-0.5 text-[10px] font-semibold text-[#8b20d5]">
+                  {proposal.category}
+                </span>
+              </h3>
+              {proposal.description && (
+                <p className="mt-2 text-xs text-[#604c85]">{proposal.description}</p>
+              )}
+              <p className="mt-1 text-[10px] text-[#a18bb8]">
+                {t('admin.proposalBy')}: {proposal.proposer?.full_name?.trim() || '—'} ·{' '}
+                {new Date(proposal.created_at).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                disabled={actionLoading === proposal.id}
+                onClick={() => handleRespond(proposal.id, 'approved')}
+                className="rounded-lg bg-green-600 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                ✓ {t('admin.proposalApprove')}
+              </button>
+              <button
+                disabled={actionLoading === proposal.id}
+                onClick={() => handleRespond(proposal.id, 'rejected')}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                ✕ {t('admin.proposalReject')}
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }
 

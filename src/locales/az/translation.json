@@ -494,7 +494,12 @@
     "studentAttendance": "Tələbə davamiyyəti",
     "blockingReason": "Bloklayan səbəb",
     "approveCredit": "Krediti təsdiqlə",
-    "cancelLesson": "Dərsi ləğv et"
+    "cancelLesson": "Dərsi ləğv et",
+    "proposalsTitle": "Bacarıq təklifləri",
+    "noProposals": "Gözləyən bacarıq təklifi yoxdur.",
+    "proposalBy": "Təklif edən",
+    "proposalApprove": "Təsdiqlə",
+    "proposalReject": "Rədd et"
   },
   "notifications": {
     "title": "Bildirişlər",
@@ -516,7 +521,10 @@
       "participant_joined": "{{name}} video otağa daxil oldu",
       "lesson_reminder_24h": "Dərsə 24 saat qalıb",
       "lesson_reminder_1h": "Dərsə 1 saat qalıb",
-      "lesson_reminder_10min": "Dərs 10 dəqiqəyə başlayır"
+      "lesson_reminder_10min": "Dərs 10 dəqiqəyə başlayır",
+      "skill_proposal_new": "{{name}} yeni bacarıq təklifi göndərdi",
+      "skill_proposal_approved": "Bacarıq təklifin təsdiqləndi — artıq siyahıdadır",
+      "skill_proposal_rejected": "Bacarıq təklifin rədd edildi"
     }
   }
 }

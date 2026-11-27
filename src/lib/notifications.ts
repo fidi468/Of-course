@@ -20,6 +20,9 @@ export type NotificationType =
   | 'lesson_reminder_24h'
   | 'lesson_reminder_1h'
   | 'lesson_reminder_10min'
+  | 'skill_proposal_new'
+  | 'skill_proposal_approved'
+  | 'skill_proposal_rejected'
 
 export type AppNotification = {
   id: number
@@ -84,6 +87,11 @@ export function notificationLink(
   type: NotificationType,
   lessonRequestId: number | null
 ): string | null {
+  // Bacarıq təklifi bildirişləri dərsə bağlı deyil — birbaşa səhifəyə keçid
+  if (type === 'skill_proposal_new') return '/admin'
+  if (type === 'skill_proposal_approved' || type === 'skill_proposal_rejected')
+    return '/skills'
+
   if (lessonRequestId === null) return null
 
   switch (type) {

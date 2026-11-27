@@ -494,7 +494,12 @@
     "studentAttendance": "Посещаемость студента",
     "blockingReason": "Причина блокировки",
     "approveCredit": "Одобрить кредит",
-    "cancelLesson": "Отменить урок"
+    "cancelLesson": "Отменить урок",
+    "proposalsTitle": "Предложения навыков",
+    "noProposals": "Ожидающих предложений навыков нет.",
+    "proposalBy": "Предложил(а)",
+    "proposalApprove": "Одобрить",
+    "proposalReject": "Отклонить"
   },
   "notifications": {
     "title": "Уведомления",
@@ -516,7 +521,10 @@
       "participant_joined": "{{name}} присоединился к видеокомнате",
       "lesson_reminder_24h": "Занятие начнется через 24 часа",
       "lesson_reminder_1h": "Занятие начнется через 1 час",
-      "lesson_reminder_10min": "Занятие начнется через 10 минут"
+      "lesson_reminder_10min": "Занятие начнется через 10 минут",
+      "skill_proposal_new": "{{name}} предложил(а) новый навык",
+      "skill_proposal_approved": "Ваше предложение навыка одобрено — навык добавлен в список",
+      "skill_proposal_rejected": "Ваше предложение навыка отклонено"
     }
   }
 }

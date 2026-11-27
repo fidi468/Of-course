@@ -494,7 +494,12 @@
     "studentAttendance": "Öğrenci devamlılığı",
     "blockingReason": "Engelleme sebebi",
     "approveCredit": "Krediyi onayla",
-    "cancelLesson": "Dersi iptal et"
+    "cancelLesson": "Dersi iptal et",
+    "proposalsTitle": "Beceri önerileri",
+    "noProposals": "Bekleyen beceri önerisi yok.",
+    "proposalBy": "Öneren",
+    "proposalApprove": "Onayla",
+    "proposalReject": "Reddet"
   },
   "notifications": {
     "title": "Bildirimler",
@@ -516,7 +521,10 @@
       "participant_joined": "{{name}} video odaya katıldı",
       "lesson_reminder_24h": "Derse 24 saat kaldı",
       "lesson_reminder_1h": "Derse 1 saat kaldı",
-      "lesson_reminder_10min": "Ders 10 dakika içinde başlıyor"
+      "lesson_reminder_10min": "Ders 10 dakika içinde başlıyor",
+      "skill_proposal_new": "{{name}} yeni bir beceri önerdi",
+      "skill_proposal_approved": "Beceri önerin onaylandı — artık listede",
+      "skill_proposal_rejected": "Beceri önerin reddedildi"
     }
   }
 }

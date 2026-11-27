@@ -494,7 +494,12 @@
     "studentAttendance": "Student attendance",
     "blockingReason": "Blocking reason",
     "approveCredit": "Approve credit",
-    "cancelLesson": "Cancel lesson"
+    "cancelLesson": "Cancel lesson",
+    "proposalsTitle": "Skill proposals",
+    "noProposals": "No pending skill proposals.",
+    "proposalBy": "Proposed by",
+    "proposalApprove": "Approve",
+    "proposalReject": "Reject"
   },
   "notifications": {
     "title": "Notifications",
@@ -516,7 +521,10 @@
       "participant_joined": "{{name}} joined the video room",
       "lesson_reminder_24h": "Your lesson starts in 24 hours",
       "lesson_reminder_1h": "Your lesson starts in 1 hour",
-      "lesson_reminder_10min": "Your lesson starts in 10 minutes"
+      "lesson_reminder_10min": "Your lesson starts in 10 minutes",
+      "skill_proposal_new": "{{name}} proposed a new skill",
+      "skill_proposal_approved": "Your skill proposal was approved — it is now in the list",
+      "skill_proposal_rejected": "Your skill proposal was rejected"
     }
   }
 }

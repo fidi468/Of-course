@@ -74,6 +74,19 @@ const ICONS: Record<NotificationType, IconStyle> = {
     path: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
     className: 'text-red-600 bg-red-50',
   },
+  skill_proposal_new: {
+    // "qələm + plus" təklif ikonu
+    path: 'M12 4v16m8-8H4M15.5 4.5l4 4M7.5 16.5L17 7l-4-4-9.5 9.5V16.5h4z',
+    className: 'text-[#8b20d5] bg-[#f4e1fb]',
+  },
+  skill_proposal_approved: {
+    path: 'M5 13l4 4L19 7',
+    className: 'text-green-700 bg-green-50',
+  },
+  skill_proposal_rejected: {
+    path: 'M6 18L18 6M6 6l12 12',
+    className: 'text-red-600 bg-red-50',
+  },
 }
 
 function NotificationIcon({ type }: { type: NotificationType }) {
