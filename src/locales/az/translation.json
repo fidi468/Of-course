@@ -437,11 +437,11 @@
     "invalidOtp": "Kod yanlışdır və ya vaxtı keçib. Yeni kod istə.",
     "network": "Şəbəkə xətası. İnternet bağlantısını yoxla və yenidən cəhd et.",
     "generic": "Əməliyyat zamanı xəta baş verdi. Zəhmət olmasa, yenidən cəhd et.",
-    "cooldown": "Yeni link istəməzdən əvvəl {{seconds}} san gözlə."
+    "cooldown": "Yeni link istəməzdən əvvəl {{seconds}} saniyyə gözlə."
   },
   "liveLesson": {
-    "join": "Video derse qoşul",
-    "loading": "Video otaq hazırlanır...",
+    "join": "Video dərsə qoşul",
+    "loading": "Video otağı hazırlanır...",
     "accessDenied": "İcazə yoxdur",
     "accessDeniedMsg": "Bu dərs otağına daxil olmaq üçün icazəniz yoxdur.",
     "backToSessions": "Seanslara qayıt",
